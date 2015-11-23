@@ -44,7 +44,10 @@ class Comms(object):
                 self.transmitCV.wait()
                 
             if(self.transQ.empty() == False):
-                self.socket.send(self.transQ.get_nowait())
+                msg = self.transQ.get_nowait()
+                if(type(msg) is str):
+                    msg = msg.encode()
+                self.socket.send(msg)
     
     def receive(self):
         ready = select.select([self.socket],[],[],1)
@@ -155,9 +158,11 @@ class RigComms(Comms):
 
 class UIComms(Comms):
 
-    def __init__(self):
+    def __init__(self, tcpIP, tcpPort):
         self.status = {}
         self.commandsQ = queue.Queue()
+        self.recvLock = threading.Lock()
+        Comms.__init__(self, tcpIP, tcpPort)
         
     def receive(self):
         silenceCounter = 0
@@ -184,7 +189,7 @@ class UIComms(Comms):
                     print("Invalid msg")
             self.recvLock.release()
         
-    def getUIStatus(self):
+    def getStatus(self):
         return self.status
     
     def sendReply(self, reply):
@@ -221,6 +226,11 @@ class UIComms(Comms):
         json.dump(obj,io)
         msg = str.encode(io.getvalue() + '\n')
         self.pushTransMsg(msg)
+        
+    def transmit(self):
+        while(self.terminate != True):
+            Comms.transmit(self)
+        
 
 rigComms = RigComms('172.168.0.63',5000)
 
@@ -229,23 +239,37 @@ t_recv.start()
 t_trans = threading.Thread(target= rigComms.transmit)
 t_trans.start()
 
+uiComms = UIComms('172.168.0.63',5001)
+
+t_recvUI = threading.Thread(target = uiComms.receive)
+t_recvUI.start()
+t_transUI = threading.Thread(target= uiComms.transmit)
+t_transUI.start()
+
+rigComms.activateRigToUI(uiComms)
+
 
 inC = 0
 
-while(inC != 4):
-    inC = int(input('Options: \n1. SendCmd \n2. Get reply \n3. Get status \n4. terminate'))
+while(inC != 10):
+    inC = int(input('Options: \n1. SendCmd \n2. Get reply \n3. Get status \n4. SendUIcmd \n10. terminate'))
     if(inC == 1):
         print(rigComms.sendCmd({'type':'stateCmd','instr':"idle"}))
     elif(inC ==2):
         temp = int(input('Enter msg ID'))
         print(rigComms.getCmdReply(temp))
     elif(inC == 3):
-        print(rigComms.getStatus())
+        print('Rig',rigComms.getStatus())
+        print('UI',uiComms.getStatus())
+    elif(inC == 4):
+        uiComms.sendWarning({"msg":"Dars fout"})
         
 rigComms.terminateComms()
+uiComms.terminateComms()
 print ("Terminate called")
 t_recv.join()
+t_recvUI.join()
 print("Recv joined")
 t_trans.join()
-
+t_transUI.join()
     
