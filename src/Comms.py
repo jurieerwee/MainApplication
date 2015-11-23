@@ -38,6 +38,7 @@ class Comms(object):
         self.transmitCV = threading.Condition()
         
     def transmit(self):
+        #This method will wait on condition variable, notified by a msg added to the Q. It will however only send a single msg.  It is the caller responsibility to add the loop.  Allowing expansion of the method.
         with self.transmitCV:
             print ('Entered transmit threaed') 
             while (self.transQ.empty() == True and not self.terminate):
@@ -50,6 +51,7 @@ class Comms(object):
                 self.socket.send(msg)
     
     def receive(self):
+        #This method waits for 1 second to receive a msg and adds it to the queue if there is.  It is the caller's responsibility to implement a loop.  This allows for expansion of the method.
         ready = select.select([self.socket],[],[],1)
         if(len(ready[0])!=0):
             data = (self.socket.recv(self.BUFFER_SIZE)).decode("utf-8").split('\n')[0]  #Read and translate received message into correct format.
@@ -59,6 +61,7 @@ class Comms(object):
             return False
             
     def pushTransMsg(self, msg):
+        #This method adds a msg to the transmit Q and notifies the thread.
         with self.transmitCV:
             self.transQ.put(msg)
             self.transmitCV.notify()
