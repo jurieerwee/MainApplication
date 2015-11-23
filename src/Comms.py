@@ -42,10 +42,9 @@ class Comms(object):
             print ('Entered transmit threaed') 
             while (self.transQ.empty() == True and not self.terminate):
                 self.transmitCV.wait()
-        
-            if not self.terminate:
-                while(self.transQ.empty()==False):
-                    self.socket.send(self.transQ.get_nowait())
+                
+            if(self.transQ.empty() == False):
+                self.socket.send(self.transQ.get_nowait())
     
     def receive(self):
         ready = select.select([self.socket],[],[],1)
@@ -99,11 +98,13 @@ class RigComms(Comms):
             else:
                 silenceCounter = 0
                 try:
-                    msg = json.loads(self.recvQ.get())
+                    msgString = self.recvQ.get()
+                    msg = json.loads(msgString)
                     key = next(iter(msg.keys()))
                     if(key == 'update'):
                         self.status = msg['update']
-                        #TODO parse status to UI
+                        if(hasattr(self,'UI')):     #If attribute UI has been added by activateRigToUI(), forward the rig status
+                            self.UI.pushTransMsg(msgString)
                     elif(key == 'reply'):
                         self.replies[msg['reply']['id']] = msg['reply']
                     else:
@@ -111,7 +112,7 @@ class RigComms(Comms):
                         print('invalid key: ', key)
                 except ValueError as e:
                     #Log invalid msg
-                    self.recvQ.get()
+                    print("Invalid msg")
             self.recvLock.release()
             
     def popRecvMsg(self):
@@ -147,6 +148,79 @@ class RigComms(Comms):
     def transmit(self):
         while(self.terminate != True):
             Comms.transmit(self)
+            
+    def activateRigToUI(self, UI):
+        self.UI = UI
+
+
+class UIComms(Comms):
+
+    def __init__(self):
+        self.status = {}
+        self.commandsQ = queue.Queue()
+        
+    def receive(self):
+        silenceCounter = 0
+        while(self.terminate == False):
+            self.recvLock.acquire()
+            received = Comms.receive(self)
+            if(received == False):
+                silenceCounter +=1
+            else:
+                silenceCounter = 0
+                try:
+                    msg = json.loads(self.recvQ.get())
+                    key = next(iter(msg.keys()))
+                    if(key == 'updateUI'):
+                        self.status = msg['updateUI']
+                        #TODO parse status to UI
+                    elif(key == 'cmd'):
+                        self.commandsQ.put_nowait(msg['cmd'])
+                    else:
+                        #Log invalid key
+                        print('invalid key: ', key)
+                except ValueError as e:
+                    #Log invalid msg
+                    print("Invalid msg")
+            self.recvLock.release()
+        
+    def getUIStatus(self):
+        return self.status
+    
+    def sendReply(self, reply):
+        obj = {}
+        obj['reply'] = reply
+        io = StringIO()
+        json.dump(obj,io)
+        msg = str.encode(io.getvalue() + '\n')
+        self.pushTransMsg(msg)
+
+    def getCmd(self):  #Raises and empty exception if no command
+        return self.commandsQ.get_nowait()
+        
+    def sendAppStatus(self,status):
+        obj = {}
+        obj['appStatus'] = status
+        io = StringIO()
+        json.dump(obj,io)
+        msg = str.encode(io.getvalue() + '\n')
+        self.pushTransMsg(msg)
+        
+    def sendWarning(self,warning):
+        obj = {}
+        obj['warningMsg'] = warning
+        io = StringIO()
+        json.dump(obj,io)
+        msg = str.encode(io.getvalue() + '\n')
+        self.pushTransMsg(msg)
+        
+    def sendError(self,error):
+        obj = {}
+        obj['errorMsg'] = error
+        io = StringIO()
+        json.dump(obj,io)
+        msg = str.encode(io.getvalue() + '\n')
+        self.pushTransMsg(msg)
 
 rigComms = RigComms('172.168.0.63',5000)
 
