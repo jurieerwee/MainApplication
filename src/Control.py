@@ -66,8 +66,10 @@ class Control(object):
             if(status['status']['state']=='IDLE_PRES'):
                 self.primeLoop.lastID = self.rigComms.sendCmd(rigCommands['prime'])
                 self.primeLoop.step +=1
+                print('Continue from step1 to 2')
             else:
                 self.uiComms.sendWarning('No system pressure. Returning to IDLE.')
+                print('No system pressure')
                 self.state = States.IDLE
                 self.primeLoop.step =1
         
@@ -77,11 +79,13 @@ class Control(object):
             '''
             reply = self.rigComms.getCmdReply(self.primeLoop.lastID)
             if(reply[0]==True):
+                print('Reply received')
                 if(reply[1]['success'] == False):
                     self.uiComms.sendError('JSON error')
                     self.abort()
                 elif(reply[1]['code'] == 1):
                     self.primeLoop.step += 1
+                    print('Continue to step 3')
                 else:
                     self.uiComms.sendWarning('Prime command unsuccessful. Returning to IDLE')
                     self.state = States.IDLE
@@ -99,8 +103,7 @@ class Control(object):
                 self.primeLoop.step = 1
                 self.nextState()
         
-        self.primeLoop.step = 1
-        self.primeLoop.stopFill = False
+        
                 
         stepsDict = {}
         stepsDict[1] = step1
@@ -108,4 +111,11 @@ class Control(object):
         stepsDict[3] = step3
         
         stepsDict[self.primeLoop.step]()
+        
+    primeLoop.step = 1
+    primeLoop.stopFill = False
+        
+    def controlLoop(self):
+        while(True):
+            self.primeLoop()
             

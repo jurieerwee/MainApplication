@@ -177,13 +177,17 @@ class UIComms(Comms):
             else:
                 silenceCounter = 0
                 try:
-                    msg = json.loads(self.recvQ.get())
+                    msgString = self.recvQ.get()
+                    msg = json.loads(msgString)
                     key = next(iter(msg.keys()))
                     if(key == 'updateUI'):
                         self.status = msg['updateUI']
                         #TODO parse status to UI
                     elif(key == 'cmd'):
                         self.commandsQ.put_nowait(msg['cmd'])
+                    elif(key == 'msg'):
+                        if(hasattr(self,'rig')):     #If attribute rig has been added by activateUItoRig(), forward msg to rig
+                            self.UI.pushTransMsg(msgString)
                     else:
                         #Log invalid key
                         print('invalid key: ', key)
@@ -234,6 +238,8 @@ class UIComms(Comms):
         while(self.terminate != True):
             Comms.transmit(self)
         
+    def activateUItoRig(self, rigComms):
+        self.rig = rigComms
 
 rigComms = RigComms('172.168.0.63',5000)
 
