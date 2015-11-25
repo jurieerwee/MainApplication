@@ -9,10 +9,9 @@ from collections import deque
 import socket
 import select
 import threading
-from ctypes.wintypes import MSG
+
 import json
 from io import StringIO
-from enum import Enum
 
 class Comms(object):
 	'''
@@ -33,6 +32,7 @@ class Comms(object):
 		self.BUFFER_SIZE = 1024
 		self.socket = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
 		self.socket.connect((self.ipAddress, self.portNumber))
+
 		
 		self.terminate = False
 		self.transmitCV = threading.Condition()
@@ -110,7 +110,7 @@ class RigComms(Comms):
 					if(key == 'update'):
 						self.status = msg['update']
 						if(hasattr(self,'UI')):	 #If attribute UI has been added by activateRigToUI(), forward the rig status
-							self.UI.pushTransMsg(msgString)
+							self.pushTransMsg(msgString)
 					elif(key == 'reply'):
 						self.replies[msg['reply']['id']] = msg['reply']
 					else:
@@ -187,7 +187,7 @@ class UIComms(Comms):
 						self.commandsQ.put_nowait(msg['cmd'])
 					elif(key == 'msg'):
 						if(hasattr(self,'rig')):	 #If attribute rig has been added by activateUItoRig(), forward msg to rig
-							self.UI.pushTransMsg(msgString)
+							self.pushTransMsg(msgString)
 					else:
 						#Log invalid key
 						print('invalid key: ', key)
@@ -241,44 +241,46 @@ class UIComms(Comms):
 	def activateUItoRig(self, rigComms):
 		self.rig = rigComms
 
-rigComms = RigComms('172.168.0.63',5000)
-
-t_recv = threading.Thread(target = rigComms.receive)
-t_recv.start()
-t_trans = threading.Thread(target= rigComms.transmit)
-t_trans.start()
-
-uiComms = UIComms('172.168.0.63',5001)
-
-t_recvUI = threading.Thread(target = uiComms.receive)
-t_recvUI.start()
-t_transUI = threading.Thread(target= uiComms.transmit)
-t_transUI.start()
-
-rigComms.activateRigToUI(uiComms)
 
 
-inC = 0
-
-while(inC != 10):
-	inC = int(input('Options: \n1. SendCmd \n2. Get reply \n3. Get status \n4. SendUIcmd \n10. terminate'))
-	if(inC == 1):
-		print(rigComms.sendCmd({'type':'stateCmd','instr':"idle"}))
-	elif(inC ==2):
-		temp = int(input('Enter msg ID'))
-		print(rigComms.getCmdReply(temp))
-	elif(inC == 3):
-		print('Rig',rigComms.getStatus())
-		print('UI',uiComms.getStatus())
-	elif(inC == 4):
-		uiComms.sendWarning({"msg":"Dars fout"})
-		
-rigComms.terminateComms()
-uiComms.terminateComms()
-print ("Terminate called")
-t_recv.join()
-t_recvUI.join()
-print("Recv joined")
-t_trans.join()
-t_transUI.join()
-	
+# rigComms = RigComms('172.168.0.63',5000)
+# 
+# t_recv = threading.Thread(target = rigComms.receive)
+# t_recv.start()
+# t_trans = threading.Thread(target= rigComms.transmit)
+# t_trans.start()
+# 
+# uiComms = UIComms('172.168.0.63',5001)
+# 
+# t_recvUI = threading.Thread(target = uiComms.receive)
+# t_recvUI.start()
+# t_transUI = threading.Thread(target= uiComms.transmit)
+# t_transUI.start()
+# 
+# rigComms.activateRigToUI(uiComms)
+# 
+# 
+# inC = 0
+# 
+# while(inC != 10):
+# 	inC = int(input('Options: \n1. SendCmd \n2. Get reply \n3. Get status \n4. SendUIcmd \n10. terminate'))
+# 	if(inC == 1):
+# 		print(rigComms.sendCmd({'type':'stateCmd','instr':"idle"}))
+# 	elif(inC ==2):
+# 		temp = int(input('Enter msg ID'))
+# 		print(rigComms.getCmdReply(temp))
+# 	elif(inC == 3):
+# 		print('Rig',rigComms.getStatus())
+# 		print('UI',uiComms.getStatus())
+# 	elif(inC == 4):
+# 		uiComms.sendWarning({"msg":"Dars fout"})
+# 		
+# rigComms.terminateComms()
+# uiComms.terminateComms()
+# print ("Terminate called")
+# t_recv.join()
+# t_recvUI.join()
+# print("Recv joined")
+# t_trans.join()
+# t_transUI.join()
+# 	
