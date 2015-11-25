@@ -3,14 +3,9 @@ Created on 23 Nov 2015
 
 @author: Jurie
 '''
-from enum import Enum, unique
 
-@unique
-class States(Enum):
-	IDLE, PRIME, FILL, FORCEFILL, PUMP, PRESSURE, ERROR, OVERRIDE, ISOLATION_TEST, PRESSURE_MEASURE, WAIT_USER, LEAKAGE_TEST = range(12)
-@unique
-class Modes(Enum):
-	AUTO_CONTINUE, STEP_TROUGH, SINGLE_STATE, MANUAL = range(4)
+
+
 
 class Control(object):
 	'''
@@ -45,16 +40,20 @@ class Control(object):
 		'''
 		Constructor
 		'''
-		self.state = States.IDLE
-		self.mode = Modes.AUTO_CONTINUE
+		self.state = 'PRIME'
+		self.mode = 'AUTO_CONTINUE'
 		self.rigComms = _rigComms
 		self.uiComms = _uiComms
+		self.subStateStep = 1
+		self.lastID = 0
 		
 	def abort(self):
 		print('Abort')
 		
 	def nextState(self):
 		print('Next state')
+		self.state = 'IDLE'
+		self.subStateStep = 1
 
 	def primeLoop(self):
 		
@@ -64,32 +63,32 @@ class Control(object):
 			'''
 			status = self.rigComms.getStatus()
 			if(status['status']['state']=='IDLE_PRES'):
-				self.primeLoop.lastID = self.rigComms.sendCmd(rigCommands['prime'])
-				self.primeLoop.step +=1
+				self.lastID = self.rigComms.sendCmd(Control.rigCommands['prime'])
+				self.subStateStep +=1
 				print('Continue from step1 to 2')
 			else:
-				self.uiComms.sendWarning('No system pressure. Returning to IDLE.')
+				self.uiComms.sendWarning({'id':2,'msg':'No system pressure. Returning to IDLE.'})
 				print('No system pressure')
-				self.state = States.IDLE
-				self.primeLoop.step =1
+				self.state = 'IDLE'
+				self.subStateStep =1
 		
 		def step2():
 			'''
 			Wait for the primeCMD response. Abort if JSON error, IDLE if command unsuccessful, otherwise continue
 			'''
-			reply = self.rigComms.getCmdReply(self.primeLoop.lastID)
+			reply = self.rigComms.getCmdReply(self.lastID)
 			if(reply[0]==True):
 				print('Reply received')
 				if(reply[1]['success'] == False):
-					self.uiComms.sendError('JSON error')
+					self.uiComms.sendError({'id':1,'msg': 'JSON error'})
 					self.abort()
 				elif(reply[1]['code'] == 1):
-					self.primeLoop.step += 1
+					self.subStateStep += 1
 					print('Continue to step 3')
 				else:
-					self.uiComms.sendWarning('Prime command unsuccessful. Returning to IDLE')
-					self.state = States.IDLE
-					self.primeLoop.step =1
+					self.uiComms.sendWarning({'id':1,'msg': 'Prime command unsuccessful. Returning to IDLE'})
+					self.state = 'IDLE'
+					self.subStateStep =1
 			#TODO: Timeout on reply
 		
 		def step3():
@@ -97,10 +96,10 @@ class Control(object):
 			If in prime4 and stopFill instruction issured, goto IDLE. If in one of the IDLE state, go to IDLE
 			''' 
 			if(self.rigComms.getStatus()['status']['state']=='PRIME4' and self.primeLoop.stopFill == True):
-				self.primeLoop.step = 1
+				self.subStateStep = 1
 				self.nextState()
 			elif(self.rigComms.getStatus()['status']['state']=='IDLE' or (self.rigComms.getStatus()['status']['state']=='IDLE_PRES')):
-				self.primeLoop.step = 1
+				self.subStateStep = 1
 				self.nextState()
 		
 		
@@ -110,12 +109,19 @@ class Control(object):
 		stepsDict[2] = step2
 		stepsDict[3] = step3
 		
-		stepsDict[self.primeLoop.step]()
+		stepsDict[self.subStateStep]()
 		
-	primeLoop.step = 1
 	primeLoop.stopFill = False
-		
+	
+	def idleLoop(self):
+		if(self.subStateStep == 1):
+			print( 'Entered idle')
+			self.subStateStep =2
+
+	
 	def controlLoop(self):
+		self.stateFunctions = {'PRIME':self.primeLoop, 'IDLE':self.idleLoop}
+		
 		while(True):
-			self.primeLoop()
+			self.stateFunctions[self.state]()
 			
