@@ -191,7 +191,7 @@ class UIComms(Comms):
 						self.commandsQ.put_nowait(msg['cmd'])
 					elif(key == 'msg'):
 						if(hasattr(self,'rig')):	 #If attribute rig has been added by activateUItoRig(), forward msg to rig
-							self.pushTransMsg(msgString)
+							self.rig.pushTransMsg(msgString)
 					else:
 						#Log invalid key
 						print('invalid key: ', key)
