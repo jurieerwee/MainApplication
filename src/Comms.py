@@ -40,7 +40,7 @@ class Comms(object):
 	def transmit(self):
 		#This method will wait on condition variable, notified by a msg added to the Q. It will however only send a single msg.  It is the caller responsibility to add the loop.  Allowing expansion of the method.
 		with self.transmitCV:
-			print ('Entered transmit threaed') 
+			#print ('Entered transmit threaed') 
 			while (self.transQ.empty() == True and not self.terminate):
 				self.transmitCV.wait()
 				
@@ -92,6 +92,7 @@ class RigComms(Comms):
 		self.status = {}
 		self.replies = {}
 		self.ID = 0
+		self.updateID = 0
 		
 		self.recvLock = threading.Lock()
 		
@@ -110,6 +111,8 @@ class RigComms(Comms):
 					key = next(iter(msg.keys()))
 					if(key == 'update'):
 						self.status = msg['update']
+						self.status.update({'id':self.updateID}) 	#Also add an ID to the update
+						self.updateID +=1
 						if(hasattr(self,'UI')):	 #If attribute UI has been added by activateRigToUI(), forward the rig status
 							self.UI.pushTransMsg(msgString)
 					elif(key == 'reply'):

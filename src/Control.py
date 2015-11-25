@@ -84,6 +84,7 @@ class Control(object):
 					self.abort()
 				elif(reply[1]['code'] == 1):
 					self.subStateStep += 1
+					self.updateIDref = self.rigComms.getStatus()['id']
 					print('Continue to step 3')
 				else:
 					self.uiComms.sendWarning({'id':1,'msg': 'Prime command unsuccessful. Returning to IDLE'})
@@ -98,7 +99,7 @@ class Control(object):
 			if(self.rigComms.getStatus()['status']['state']=='PRIME4'):	#TODO: add stopFill flag
 				self.subStateStep = 1
 				self.nextState()
-			elif(self.rigComms.getStatus()['status']['state']=='IDLE' or (self.rigComms.getStatus()['status']['state']=='IDLE_PRES')):
+			elif(self.updateIDref < self.rigComms.getStatus()['id'] and (self.rigComms.getStatus()['status']['state']=='IDLE' or (self.rigComms.getStatus()['status']['state']=='IDLE_PRES'))):
 				self.subStateStep = 1
 				self.nextState()
 		
@@ -121,7 +122,7 @@ class Control(object):
 	
 	def controlLoop(self):
 		self.stateFunctions = {'PRIME':self.primeLoop, 'IDLE':self.idleLoop}
-		
+		print('Started controlLoop')
 		while(True):
 			self.stateFunctions[self.state]()
 			
