@@ -49,6 +49,7 @@ class Comms(object):
 				if(type(msg) is str):
 					msg = msg.encode()
 				self.socket.send(msg)
+				print('Sending msg:',msg)
 	
 	def receive(self):
 		#This method waits for 1 second to receive a msg and adds it to the queue if there is.  It is the caller's responsibility to implement a loop.  This allows for expansion of the method.
@@ -110,7 +111,7 @@ class RigComms(Comms):
 					if(key == 'update'):
 						self.status = msg['update']
 						if(hasattr(self,'UI')):	 #If attribute UI has been added by activateRigToUI(), forward the rig status
-							self.pushTransMsg(msgString)
+							self.UI.pushTransMsg(msgString)
 					elif(key == 'reply'):
 						self.replies[msg['reply']['id']] = msg['reply']
 					else:
