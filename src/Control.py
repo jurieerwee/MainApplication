@@ -95,7 +95,7 @@ class Control(object):
 			'''
 			If in prime4 and stopFill instruction issured, goto IDLE. If in one of the IDLE state, go to IDLE
 			''' 
-			if(self.rigComms.getStatus()['status']['state']=='PRIME4' and self.primeLoop.stopFill == True):
+			if(self.rigComms.getStatus()['status']['state']=='PRIME4'):	#TODO: add stopFill flag
 				self.subStateStep = 1
 				self.nextState()
 			elif(self.rigComms.getStatus()['status']['state']=='IDLE' or (self.rigComms.getStatus()['status']['state']=='IDLE_PRES')):
