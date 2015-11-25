@@ -49,7 +49,7 @@ class Comms(object):
 				if(type(msg) is str):
 					msg = msg.encode()
 				self.socket.send(msg)
-				print('Sending msg:',msg)
+				#print('Sending msg:',msg)
 	
 	def receive(self):
 		#This method waits for 1 second to receive a msg and adds it to the queue if there is.  It is the caller's responsibility to implement a loop.  This allows for expansion of the method.
