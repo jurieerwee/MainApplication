@@ -296,7 +296,7 @@ class Control(object):
 
 	
 	def controlLoop(self):
-		self.stateFunctions = {'PRIME':self.primeLoop, 'IDLE':self.idleLoop}
+		self.stateFunctions = {'PRIME':self.primeLoop, 'IDLE':self.idleLoop, 'leakageTest':self.leakTestLoop}
 		print('Started controlLoop')
 		while(True):
 			self.stateFunctions[self.state]()
