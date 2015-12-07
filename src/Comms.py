@@ -136,7 +136,7 @@ class RigComms(Comms):
 		return self.status
 	
 	def sendCmd(self, cmd): #Command is a dict of the JSON to be sent.  Excludes the ID and msg keyword
-		cmd['id'] = self.ID
+		cmd.update({'id':self.ID})
 		self.ID +=1 #increment ID
 		obj = {}
 		obj['msg'] = cmd
