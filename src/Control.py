@@ -5,7 +5,7 @@ Created on 23 Nov 2015
 '''
 
 
-
+import threading
 
 class Control(object):
 	'''
@@ -46,6 +46,13 @@ class Control(object):
 		self.uiComms = _uiComms
 		self.subStateStep = 1
 		self.lastID = 0
+		
+		#leakageTest
+		self.pressureSequence = [4,3.5,3,2.5,2]
+		self.pressSeqCounter =0
+		self.timer1Passed = False #Flag for use with timer1.
+		self.results = [] #list of dictionaries for test results
+		
 		
 	def abort(self):
 		print('Abort')
@@ -114,6 +121,174 @@ class Control(object):
 		
 	primeLoop.stopFill = False
 	
+	
+	def leakTestLoop(self):
+		def step1():
+			''' Send startPump command. Continue to next step'''
+			self.lastID = self.rigComms.sendCmd(Control.rigCommands['startPump'])
+			self.subStateStep +=1
+			
+		def step2():
+			''' Wait for reply on startPump command. Continue to next step'''
+			reply = self.rigComms.getCmdReply(self.lastID)
+			if(reply[0]==True):
+				if(reply[1]['success'] == False):
+					self.uiComms.sendError({'id':2,'msg': 'JSON error'})
+					self.abort()
+				elif(reply[1]['code'] == 1):
+					self.subStateStep += 1
+					self.updateIDref = self.rigComms.getStatus()['id']
+					print('Continue to step 3')
+				else:
+					self.uiComms.sendWarning({'id':3,'msg': 'Start pump command unsuccessful. Returning to IDLE'})
+					self.state = 'IDLE'
+					self.subStateStep =1
+					
+		def step3():
+			'''Set the new pressure command.  This is also the entry point for the loop back next pressure is set'''
+			self.lastID = self.rigComms.sendCmd(Control.rigCommands['setPressure'].update({'pressure',self.pressureSequence[self.pressSeqCounter]}))
+			self.pressSeqCounter +=1
+			self.subStateStep +=1
+			print('Continue to step 4')
+		
+		def step4():
+			'''Wait for reply on setPressure command. Send newPressure command.'''
+			reply = self.rigComms.getCmdReply(self.lastID)
+			if(reply[0]==True):
+				if(reply[1]['success'] == False):
+					self.uiComms.sendError({'id':3,'msg': 'JSON error'})
+					self.abort()
+				elif(reply[1]['code'] == 1):
+					self.subStateStep += 1
+					self.updateIDref = self.rigComms.getStatus()['id']
+					self.lastID = self.rigComms.sendCmd(Control.rigCommands['newPressure'])
+					print('Continue to step 5')
+				else:
+					self.uiComms.sendWarning({'id':4,'msg': 'Set pressure command unsuccessful. Returning to IDLE'})
+					self.state = 'IDLE'
+					self.subStateStep =1
+		
+		def stopTimer1():
+			''' Function used by timer time1.'''
+			self.timer1Passed = True
+		
+		def step5():
+			'''Wait for reply on newPressure command. Start settling timer of 1minute.'''
+			reply = self.rigComms.getCmdReply(self.lastID)
+			if(reply[0]==True):
+				if(reply[1]['success'] == False):
+					self.uiComms.sendError({'id':4,'msg': 'JSON error'})
+					self.abort()
+				elif(reply[1]['code'] == 1):
+					self.subStateStep += 1
+					self.updateIDref = self.rigComms.getStatus()['id']
+					self.timer1Passed = False
+					self.timer1 = threading.Timer(60,stopTimer1) #TODO: make settling time configurable
+					self.timer1.start()
+					print('Continue to step 6')
+				else:
+					self.uiComms.sendWarning({'id':5,'msg': 'New pressure command unsuccessful. Returning to IDLE'})
+					self.state = 'IDLE'
+					self.subStateStep =1
+		
+		def step6():
+			'''Wait for settling period to pass.  Consider that rig in correct state. Reset the rig counters.'''
+			if(self.settleDone == True):
+				if(self.rigComms.getStatus()['status']['state']=='PRESSURE_HOLD'):
+					print('Settle period over.')
+					self.lastID = self.rigComms.sendCmd(Control.rigCommands['resetCounters'])
+					self.subStateStep += 1
+					self.updateIDref = self.rigComms.getStatus()['id']
+					self.timer1Passed = False
+					self.timer1 = threading.Timer(30,stopTimer1)
+					self.timer1.start()
+					self.minMeasureTimePassed = False
+				else:
+					self.uiComms.sendWarning({'id':6,'msg':'Rig in wrong state after settling.'})
+					self.state = 'IDLE'
+					self.subStateStep =1
+					
+		def step7():
+			''' Wait for reply on resetCounters cmd. Continue to next step'''
+			reply = self.rigComms.getCmdReply(self.lastID)
+			if(reply[0]==True):
+				if(reply[1]['success'] == False):
+					self.uiComms.sendError({'id':5,'msg': 'JSON error'})
+					self.abort()
+				elif(reply[1]['code'] == 1):
+					self.subStateStep += 1
+					self.updateIDref = self.rigComms.getStatus()['id']
+					print('Continue to step 8')
+				else:
+					self.uiComms.sendWarning({'id':7,'msg': 'Reset counters command unsuccessful. Returning to IDLE'})
+					self.state = 'IDLE'
+					self.subStateStep =1
+					
+		def step8():
+			'''Continue to next step once minimum measuring time has passed.  Also start the no-flow timeout'''
+			if(self.timer1Passed == True): #Minimum measuring time passed.
+				self.timer1Passed = False
+				self.timer1 = threading.Timer(151,stopTimer1)	#Start no-flow timer
+				self.subStateStep += 1
+				self.updateIDref = self.rigComms.getStatus()['id']
+				print('Continue to step 9')
+				
+		def step9():
+			'''Take the measurings from the rig at the right time.  If no flow, stop test. '''
+			status = self.rigComms.getStatus()
+			if(status['setData']['volume']>=3): #minimum of 3 pulses, ie, two delta
+				self.timer1.cancel() #Stop no-flow timeout
+				result = {'setPressure':self.pressureSequence[self.pressSeqCounter-1],'avePressure':status['setData']['pressure'],'aveFlow': status['setData']['flow']}
+				self.results.append(result)
+				print('Results taken')
+				
+				self.updateIDref = self.rigComms.getStatus()['id']
+				if(len(self.pressureSequence)<= self.pressSeqCounter): #Done
+					self.subStateStep += 1
+				else:
+					self.subStateStep = 3 	#Jump back to set pressure step
+			elif(self.timer1Passed == True): #No flow
+				result =  {'setPressure':self.pressureSequence[self.pressSeqCounter-1],'avePressure':status['setData']['pressure'],'aveFlow': 0}
+				self.results.append(result)
+				self.updateIDref = self.rigComms.getStatus()['id']
+				self.subStateStep +=1
+				
+		def step10():
+			'''Send final command for rig to IDLE'''
+			self.lastID = self.rigComms.sendCmd(Control.rigCommands['idle'])
+			self.updateIDref = self.rigComms.getStatus()['id']
+			self.subStateStep +=1
+			
+		def step11():
+			reply = self.rigComms.getCmdReply(self.lastID)
+			if(reply[0]==True):
+				if(reply[1]['success'] == False):
+					self.uiComms.sendError({'id':6,'msg': 'JSON error'})
+					self.abort()
+				elif(reply[1]['code'] == 1):
+					self.updateIDref = self.rigComms.getStatus()['id']
+					self.state = 'IDLE'
+					self.subStateStep =1
+				else:
+					self.uiComms.sendWarning({'id':8,'msg': 'Final idle command unsuccessful. Returning to IDLE'})
+					self.state = 'IDLE'
+					self.subStateStep =1
+					
+		stepsDict = {}
+		stepsDict[1] = step1
+		stepsDict[2] = step2
+		stepsDict[3] = step3
+		stepsDict[4] = step4
+		stepsDict[5] = step5
+		stepsDict[6] = step6
+		stepsDict[7] = step7
+		stepsDict[8] = step8
+		stepsDict[9] = step9
+		stepsDict[12] = step10
+		stepsDict[11] = step11
+		
+		stepsDict[self.subStateStep]()
+
 	def idleLoop(self):
 		if(self.subStateStep == 1):
 			print( 'Entered idle')
@@ -126,3 +301,6 @@ class Control(object):
 		while(True):
 			self.stateFunctions[self.state]()
 			
+			
+
+		
