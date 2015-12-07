@@ -40,7 +40,7 @@ class Control(object):
 		'''
 		Constructor
 		'''
-		self.state = 'PRIME'
+		self.state = 'LEAKAGE_TEST'
 		self.mode = 'AUTO_CONTINUE'
 		self.rigComms = _rigComms
 		self.uiComms = _uiComms
@@ -146,7 +146,7 @@ class Control(object):
 					
 		def step3():
 			'''Set the new pressure command.  This is also the entry point for the loop back next pressure is set'''
-			self.lastID = self.rigComms.sendCmd(Control.rigCommands['setPressure'].update({'pressure',self.pressureSequence[self.pressSeqCounter]}))
+			self.lastID = self.rigComms.sendCmd(Control.rigCommands['setPressure'].update({'pressure':self.pressureSequence[self.pressSeqCounter]}))
 			self.pressSeqCounter +=1
 			self.subStateStep +=1
 			print('Continue to step 4')
@@ -233,7 +233,7 @@ class Control(object):
 				self.updateIDref = self.rigComms.getStatus()['id']
 				print('Continue to step 9')
 				
-		def step9():
+		def step9():	#TODO: Build in a pressure monitor for pressure changes.
 			'''Take the measurings from the rig at the right time.  If no flow, stop test. '''
 			status = self.rigComms.getStatus()
 			if(status['setData']['volume']>=3): #minimum of 3 pulses, ie, two delta
@@ -296,8 +296,17 @@ class Control(object):
 
 	
 	def controlLoop(self):
-		self.stateFunctions = {'PRIME':self.primeLoop, 'IDLE':self.idleLoop, 'leakageTest':self.leakTestLoop}
+		self.stateFunctions = {'PRIME':self.primeLoop, 'IDLE':self.idleLoop, 'LEAKAGE_TEST':self.leakTestLoop}
 		print('Started controlLoop')
+		
+		gotCMD = False
+		while(gotCMD == False):
+			try:
+				self.uiComms.getCmd()
+				gotCMD = True
+			except:
+				gotCMD = False
+		
 		while(True):
 			self.stateFunctions[self.state]()
 			
