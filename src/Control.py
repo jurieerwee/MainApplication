@@ -267,7 +267,7 @@ class Control(object):
 					self.abort()
 				elif(reply[1]['code'] == 1):
 					self.updateIDref = self.rigComms.getStatus()['id']
-					self.state = 'IDLE'
+					self.nextState()
 					self.subStateStep =1
 				else:
 					self.uiComms.sendWarning({'id':8,'msg': 'Final idle command unsuccessful. Returning to IDLE'})
