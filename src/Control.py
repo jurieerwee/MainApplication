@@ -146,7 +146,9 @@ class Control(object):
 					
 		def step3():
 			'''Set the new pressure command.  This is also the entry point for the loop back next pressure is set'''
-			self.lastID = self.rigComms.sendCmd(Control.rigCommands['setPressure'].update({'pressure':self.pressureSequence[self.pressSeqCounter]}))
+			setPresCMD = Control.rigCommands['setPressure']
+			setPresCMD.update({'pressure':self.pressureSequence[self.pressSeqCounter]})
+			self.lastID = self.rigComms.sendCmd(setPresCMD)
 			self.pressSeqCounter +=1
 			self.subStateStep +=1
 			print('Continue to step 4')
@@ -193,7 +195,7 @@ class Control(object):
 		
 		def step6():
 			'''Wait for settling period to pass.  Consider that rig in correct state. Reset the rig counters.'''
-			if(self.settleDone == True):
+			if(self.timer1Passed == True):
 				if(self.rigComms.getStatus()['status']['state']=='PRESSURE_HOLD'):
 					print('Settle period over.')
 					self.lastID = self.rigComms.sendCmd(Control.rigCommands['resetCounters'])
