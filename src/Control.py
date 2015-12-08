@@ -249,7 +249,7 @@ class Control(object):
 			status = self.rigComms.getStatus()
 			if(status['setData']['flowCounter']>=3): #minimum of 3 pulses, ie, two delta
 				self.timer1.cancel() #Stop no-flow timeout
-				result = {'setPressure':self.pressureSequence[self.pressSeqCounter-1],'avePressure':status['setData']['pressure'],'aveFlow': status['setData']['flow']}
+				result = {'setPressure':self.pressureSequence[self.pressSeqCounter-1],'avePressure':status['setData']['pressure'],'aveFlow': status['setData']['flowRate']}
 				self.results.append(result)
 				print('Results taken')
 				
