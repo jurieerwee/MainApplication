@@ -123,10 +123,16 @@ class Control(object):
 	
 	
 	def leakTestLoop(self):
+		def stopTimer1():
+			''' Function used by timer time1.'''
+			self.timer1Passed = True
 		def step1():
 			''' Send startPump command. Continue to next step'''
 			self.lastID = self.rigComms.sendCmd(Control.rigCommands['startPump'])
 			self.subStateStep +=1
+			self.timer1Passed = False
+			self.timer1 = threading.Timer(10,stopTimer1) #TODO: make settling time configurable
+			self.timer1.start()
 			
 		def step2():
 			''' Wait for reply on startPump command. Continue to next step'''
@@ -145,15 +151,22 @@ class Control(object):
 					self.subStateStep =1
 					
 		def step3():
+			'''Wait for a few seconds before continuing in order for the pump to settle'''
+			if(self.timer1Passed==True):
+				self.subStateStep += 1
+				self.updateIDref = self.rigComms.getStatus()['id']
+				print('Continue to step 4')
+					
+		def step4():
 			'''Set the new pressure command.  This is also the entry point for the loop back next pressure is set'''
 			setPresCMD = Control.rigCommands['setPressure']
 			setPresCMD.update({'pressure':self.pressureSequence[self.pressSeqCounter]})
 			self.lastID = self.rigComms.sendCmd(setPresCMD)
 			self.pressSeqCounter +=1
 			self.subStateStep +=1
-			print('Continue to step 4')
+			print('Continue to step 5')
 		
-		def step4():
+		def step5():
 			'''Wait for reply on setPressure command. Send newPressure command.'''
 			reply = self.rigComms.getCmdReply(self.lastID)
 			if(reply[0]==True):
@@ -164,17 +177,13 @@ class Control(object):
 					self.subStateStep += 1
 					self.updateIDref = self.rigComms.getStatus()['id']
 					self.lastID = self.rigComms.sendCmd(Control.rigCommands['newPressure'])
-					print('Continue to step 5')
+					print('Continue to step 6')
 				else:
 					self.uiComms.sendWarning({'id':4,'msg': 'Set pressure command unsuccessful. Returning to IDLE'})
 					self.state = 'IDLE'
 					self.subStateStep =1
 		
-		def stopTimer1():
-			''' Function used by timer time1.'''
-			self.timer1Passed = True
-		
-		def step5():
+		def step6():
 			'''Wait for reply on newPressure command. Start settling timer of 1minute.'''
 			reply = self.rigComms.getCmdReply(self.lastID)
 			if(reply[0]==True):
@@ -187,13 +196,13 @@ class Control(object):
 					self.timer1Passed = False
 					self.timer1 = threading.Timer(60,stopTimer1) #TODO: make settling time configurable
 					self.timer1.start()
-					print('Continue to step 6')
+					print('Continue to step 7')
 				else:
 					self.uiComms.sendWarning({'id':5,'msg': 'New pressure command unsuccessful. Returning to IDLE'})
 					self.state = 'IDLE'
 					self.subStateStep =1
 		
-		def step6():
+		def step7():
 			'''Wait for settling period to pass.  Consider that rig in correct state. Reset the rig counters.'''
 			if(self.timer1Passed == True):
 				if(self.rigComms.getStatus()['status']['state']=='PRESSURE_HOLD'):
@@ -210,7 +219,7 @@ class Control(object):
 					self.state = 'IDLE'
 					self.subStateStep =1
 					
-		def step7():
+		def step8():
 			''' Wait for reply on resetCounters cmd. Continue to next step'''
 			reply = self.rigComms.getCmdReply(self.lastID)
 			if(reply[0]==True):
@@ -220,22 +229,22 @@ class Control(object):
 				elif(reply[1]['code'] == 1):
 					self.subStateStep += 1
 					self.updateIDref = self.rigComms.getStatus()['id']
-					print('Continue to step 8')
+					print('Continue to step 9')
 				else:
 					self.uiComms.sendWarning({'id':7,'msg': 'Reset counters command unsuccessful. Returning to IDLE'})
 					self.state = 'IDLE'
 					self.subStateStep =1
 					
-		def step8():
+		def step9():
 			'''Continue to next step once minimum measuring time has passed.  Also start the no-flow timeout'''
 			if(self.timer1Passed == True): #Minimum measuring time passed.
 				self.timer1Passed = False
 				self.timer1 = threading.Timer(151,stopTimer1)	#Start no-flow timer
 				self.subStateStep += 1
 				self.updateIDref = self.rigComms.getStatus()['id']
-				print('Continue to step 9')
+				print('Continue to step 10')
 				
-		def step9():	#TODO: Build in a pressure monitor for pressure changes.
+		def step10():	#TODO: Build in a pressure monitor for pressure changes.
 			'''Take the measurings from the rig at the right time.  If no flow, stop test. '''
 			status = self.rigComms.getStatus()
 			if(status['setData']['volume']>=3): #minimum of 3 pulses, ie, two delta
@@ -247,6 +256,7 @@ class Control(object):
 				self.updateIDref = self.rigComms.getStatus()['id']
 				if(len(self.pressureSequence)<= self.pressSeqCounter): #Done
 					self.subStateStep += 1
+					print('Continue to step 11')
 				else:
 					self.subStateStep = 3 	#Jump back to set pressure step
 			elif(self.timer1Passed == True): #No flow
@@ -254,14 +264,17 @@ class Control(object):
 				self.results.append(result)
 				self.updateIDref = self.rigComms.getStatus()['id']
 				self.subStateStep +=1
+				print('Continue to step 11')
 				
-		def step10():
+		def step11():
 			'''Send final command for rig to IDLE'''
 			self.lastID = self.rigComms.sendCmd(Control.rigCommands['idle'])
 			self.updateIDref = self.rigComms.getStatus()['id']
 			self.subStateStep +=1
+			print('Continue to step 12')
 			
-		def step11():
+			
+		def step12():
 			reply = self.rigComms.getCmdReply(self.lastID)
 			if(reply[0]==True):
 				if(reply[1]['success'] == False):
@@ -286,7 +299,7 @@ class Control(object):
 		stepsDict[7] = step7
 		stepsDict[8] = step8
 		stepsDict[9] = step9
-		stepsDict[12] = step10
+		stepsDict[10] = step10
 		stepsDict[11] = step11
 		
 		stepsDict[self.subStateStep]()
