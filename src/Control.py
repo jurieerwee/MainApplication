@@ -301,6 +301,7 @@ class Control(object):
 		stepsDict[9] = step9
 		stepsDict[10] = step10
 		stepsDict[11] = step11
+		stepsDict[12] = step12
 		
 		stepsDict[self.subStateStep]()
 
