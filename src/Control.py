@@ -247,7 +247,7 @@ class Control(object):
 		def step10():	#TODO: Build in a pressure monitor for pressure changes.
 			'''Take the measurings from the rig at the right time.  If no flow, stop test. '''
 			status = self.rigComms.getStatus()
-			if(status['setData']['volume']>=3): #minimum of 3 pulses, ie, two delta
+			if(status['setData']['flowCounter']>=3): #minimum of 3 pulses, ie, two delta
 				self.timer1.cancel() #Stop no-flow timeout
 				result = {'setPressure':self.pressureSequence[self.pressSeqCounter-1],'avePressure':status['setData']['pressure'],'aveFlow': status['setData']['flow']}
 				self.results.append(result)
