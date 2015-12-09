@@ -125,10 +125,10 @@ class RigComms(Comms):
 						self.replies[msg['reply']['id']] = msg['reply']
 					else:
 						#Log invalid key
-						logger.warning('invalid key: ', key)
+						logging.warning('invalid key: ', key)
 				except ValueError as e:
 					#Log invalid msg
-					logger.warning("Invalid msg:", msgString)
+					logging.warning("Invalid msg:", msgString)
 			self.recvLock.release()
 			
 	def popRecvMsg(self):
@@ -198,13 +198,13 @@ class UIComms(Comms):
 					elif(key == 'msg'):
 						if(hasattr(self,'rig')):	 #If attribute rig has been added by activateUItoRig(), forward msg to rig
 							self.rig.pushTransMsg(msgString + '\n')
-							logger.info('Msg forwarded')
+							logging.info('Msg forwarded')
 					else:
 						#Log invalid key
-						logger.warning('invalid key: ', key)
+						logging.warning('invalid key: ', key)
 				except ValueError as e:
 					#Log invalid msg
-					logger.warning("Invalid msg")
+					logging.warning("Invalid msg")
 			self.recvLock.release()
 		
 	def getStatus(self):

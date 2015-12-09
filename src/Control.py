@@ -56,10 +56,10 @@ class Control(object):
 		
 		
 	def abort(self):
-		logger.error('Abort')
+		logging.error('Abort')
 		
 	def nextState(self):
-		logger.info('Next state')
+		logging.info('Next state')
 		self.state = 'IDLE'
 		self.subStateStep = 1
 
@@ -73,10 +73,10 @@ class Control(object):
 			if(status['status']['state']=='IDLE_PRES'):
 				self.lastID = self.rigComms.sendCmd(Control.rigCommands['prime'])
 				self.subStateStep +=1
-				logger.info('Continue from step1 to 2')
+				logging.info('Continue from step1 to 2')
 			else:
 				self.uiComms.sendWarning({'id':2,'msg':'No system pressure. Returning to IDLE.'})
-				logger.warning('No system pressure')
+				logging.warning('No system pressure')
 				self.state = 'IDLE'
 				self.subStateStep =1
 		
@@ -86,14 +86,14 @@ class Control(object):
 			'''
 			reply = self.rigComms.getCmdReply(self.lastID)
 			if(reply[0]==True):
-				logger.info('Reply received')
+				logging.info('Reply received')
 				if(reply[1]['success'] == False):
 					self.uiComms.sendError({'id':1,'msg': 'JSON error'})
 					self.abort()
 				elif(reply[1]['code'] == 1):
 					self.subStateStep += 1
 					self.updateIDref = self.rigComms.getStatus()['id']
-					logger.info('Continue to step 3')
+					logging.info('Continue to step 3')
 				else:
 					self.uiComms.sendWarning({'id':1,'msg': 'Prime command unsuccessful. Returning to IDLE'})
 					self.state = 'IDLE'
@@ -145,7 +145,7 @@ class Control(object):
 				elif(reply[1]['code'] == 1):
 					self.subStateStep += 1
 					self.updateIDref = self.rigComms.getStatus()['id']
-					logger.info('Continue to step 3')
+					logging.info('Continue to step 3')
 				else:
 					self.uiComms.sendWarning({'id':3,'msg': 'Start pump command unsuccessful. Returning to IDLE'})
 					self.state = 'IDLE'
@@ -156,7 +156,7 @@ class Control(object):
 			if(self.timer1Passed==True):
 				self.subStateStep += 1
 				self.updateIDref = self.rigComms.getStatus()['id']
-				logger.info('Continue to step 4')
+				logging.info('Continue to step 4')
 					
 		def step4():
 			'''Set the new pressure command.  This is also the entry point for the loop back next pressure is set'''
@@ -165,7 +165,7 @@ class Control(object):
 			self.lastID = self.rigComms.sendCmd(setPresCMD)
 			self.pressSeqCounter +=1
 			self.subStateStep +=1
-			logger.info('Continue to step 5')
+			logging.info('Continue to step 5')
 		
 		def step5():
 			'''Wait for reply on setPressure command. Send newPressure command.'''
@@ -178,7 +178,7 @@ class Control(object):
 					self.subStateStep += 1
 					self.updateIDref = self.rigComms.getStatus()['id']
 					self.lastID = self.rigComms.sendCmd(Control.rigCommands['newPressure'])
-					logger.info('Continue to step 6')
+					logging.info('Continue to step 6')
 				else:
 					self.uiComms.sendWarning({'id':4,'msg': 'Set pressure command unsuccessful. Returning to IDLE'})
 					self.state = 'IDLE'
@@ -197,7 +197,7 @@ class Control(object):
 					self.timer1Passed = False
 					self.timer1 = threading.Timer(60,stopTimer1) #TODO: make settling time configurable
 					self.timer1.start()
-					logger.info('Continue to step 7')
+					logging.info('Continue to step 7')
 				else:
 					self.uiComms.sendWarning({'id':5,'msg': 'New pressure command unsuccessful. Returning to IDLE'})
 					self.state = 'IDLE'
@@ -207,7 +207,7 @@ class Control(object):
 			'''Wait for settling period to pass.  Consider that rig in correct state. Reset the rig counters.'''
 			if(self.timer1Passed == True):
 				if(self.rigComms.getStatus()['status']['state']=='PRESSURE_HOLD'):
-					logger.info('Settle period over.')
+					logging.info('Settle period over.')
 					self.lastID = self.rigComms.sendCmd(Control.rigCommands['resetCounters'])
 					self.subStateStep += 1
 					self.updateIDref = self.rigComms.getStatus()['id']
@@ -230,7 +230,7 @@ class Control(object):
 				elif(reply[1]['code'] == 1):
 					self.subStateStep += 1
 					self.updateIDref = self.rigComms.getStatus()['id']
-					logger.info('Continue to step 9')
+					logging.info('Continue to step 9')
 				else:
 					self.uiComms.sendWarning({'id':7,'msg': 'Reset counters command unsuccessful. Returning to IDLE'})
 					self.state = 'IDLE'
@@ -243,7 +243,7 @@ class Control(object):
 				self.timer1 = threading.Timer(151,stopTimer1)	#Start no-flow timer
 				self.subStateStep += 1
 				self.updateIDref = self.rigComms.getStatus()['id']
-				logger.info('Continue to step 10')
+				logging.info('Continue to step 10')
 				
 		def step10():	#TODO: Build in a pressure monitor for pressure changes.
 			'''Take the measurings from the rig at the right time.  If no flow, stop test. '''
@@ -252,29 +252,29 @@ class Control(object):
 				self.timer1.cancel() #Stop no-flow timeout
 				result = {'setPressure':self.pressureSequence[self.pressSeqCounter-1],'avePressure':status['setData']['pressure'],'aveFlow': status['setData']['flowRate']}
 				self.results.append(result)
-				logger.info('Results taken')
+				logging.info('Results taken')
 				
 				self.updateIDref = self.rigComms.getStatus()['id']
 				if(self.pressSeqCounter<len(self.pressureSequence)):
 					self.subStateStep = 4 	#Jump back to set pressure step
-					logger.info ('Return to step4')
+					logging.info ('Return to step4')
 				else: #Done
 					self.subStateStep += 1
-					logger.info('Continue to step 11')
+					logging.info('Continue to step 11')
 
 			elif(self.timer1Passed == True): #No flow
 				result =  {'setPressure':self.pressureSequence[self.pressSeqCounter-1],'avePressure':status['setData']['pressure'],'aveFlow': 0}
 				self.results.append(result)
 				self.updateIDref = self.rigComms.getStatus()['id']
 				self.subStateStep +=1
-				logger.info('Continue to step 11')
+				logging.info('Continue to step 11')
 				
 		def step11():
 			'''Send final command for rig to IDLE'''
 			self.lastID = self.rigComms.sendCmd(Control.rigCommands['idle'])
 			self.updateIDref = self.rigComms.getStatus()['id']
 			self.subStateStep +=1
-			logger.info('Continue to step 12')
+			logging.info('Continue to step 12')
 			
 			
 		def step12():
@@ -313,7 +313,7 @@ class Control(object):
 
 	def idleLoop(self):
 		if(self.subStateStep == 1):
-			logger.info( 'Entered idle in main.')
+			logging.info( 'Entered idle in main.')
 			self.lastID = self.rigComms.sendCmd(Control.rigCommands['idle'])
 			self.updateIDref = self.rigComms.getStatus()['id']
 			self.subStateStep =2
@@ -326,7 +326,7 @@ class Control(object):
 	
 	def controlLoop(self):
 		self.stateFunctions = {'PRIME':self.primeLoop, 'IDLE':self.idleLoop, 'LEAKAGE_TEST':self.leakTestLoop}
-		logger.info('Started controlLoop')
+		logging.info('Started controlLoop')
 		
 		gotCMD = False
 		while(gotCMD == False):
