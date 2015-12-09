@@ -13,6 +13,12 @@ import threading
 import socket
 import time
 import sys
+import logging
+
+def initLogging():
+	logging.basicConfig(filename='mainAppLog.log',level=logging.INFO, format='[%(asctime)s] %(levelname)s: %(message)s')
+
+initLogging()
 
 try:
 	rigComms = RigComms('172.168.0.63',5000)
@@ -31,7 +37,7 @@ except (socket.error):
 try:	
 	uiComms = UIComms('172.168.0.63',5001)
 except (socket.error):
-	print('uiComms init failed')
+	logging.error('uiComms init failed')
 	sys.exit()
 
 rigComms.activateRigToUI(uiComms)
@@ -57,7 +63,7 @@ while(not rigComms.getStatus() and i <10):
 	i +=1
 
 if(i==10):
-	print('No status...',rigComms.getStatus() )
+	logging.error('No status...',rigComms.getStatus() )
 	exit()
 
 print(rigComms.getStatus())

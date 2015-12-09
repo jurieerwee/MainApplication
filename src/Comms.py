@@ -9,6 +9,7 @@ from collections import deque
 import socket
 import select
 import threading
+import logging
 
 import json
 from io import StringIO
@@ -124,10 +125,10 @@ class RigComms(Comms):
 						self.replies[msg['reply']['id']] = msg['reply']
 					else:
 						#Log invalid key
-						print('invalid key: ', key)
+						logger.warning('invalid key: ', key)
 				except ValueError as e:
 					#Log invalid msg
-					print("Invalid msg:", msgString)
+					logger.warning("Invalid msg:", msgString)
 			self.recvLock.release()
 			
 	def popRecvMsg(self):
@@ -197,13 +198,13 @@ class UIComms(Comms):
 					elif(key == 'msg'):
 						if(hasattr(self,'rig')):	 #If attribute rig has been added by activateUItoRig(), forward msg to rig
 							self.rig.pushTransMsg(msgString + '\n')
-							print('Msg forwarded')
+							logger.info('Msg forwarded')
 					else:
 						#Log invalid key
-						print('invalid key: ', key)
+						logger.warning('invalid key: ', key)
 				except ValueError as e:
 					#Log invalid msg
-					print("Invalid msg")
+					logger.warning("Invalid msg")
 			self.recvLock.release()
 		
 	def getStatus(self):
