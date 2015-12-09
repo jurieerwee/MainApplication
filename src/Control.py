@@ -254,12 +254,13 @@ class Control(object):
 				print('Results taken')
 				
 				self.updateIDref = self.rigComms.getStatus()['id']
-				if(len(self.pressureSequence)<= self.pressSeqCounter): #Done
+				if(self.pressSeqCounter<len(self.pressureSequence)):
+					self.subStateStep = 4 	#Jump back to set pressure step
+					print ('Return to step4')
+				else: #Done
 					self.subStateStep += 1
 					print('Continue to step 11')
-				else:
-					self.subStateStep = 4 	#Jump back to set pressure step
-					print ('Return to step3')
+
 			elif(self.timer1Passed == True): #No flow
 				result =  {'setPressure':self.pressureSequence[self.pressSeqCounter-1],'avePressure':status['setData']['pressure'],'aveFlow': 0}
 				self.results.append(result)
@@ -308,9 +309,16 @@ class Control(object):
 
 	def idleLoop(self):
 		if(self.subStateStep == 1):
-			print( 'Entered idle')
+			print( 'Entered idle in main.')
+			self.lastID = self.rigComms.sendCmd(Control.rigCommands['idle'])
+			self.updateIDref = self.rigComms.getStatus()['id']
 			self.subStateStep =2
-
+		if(self.subStateStep == 2):
+			if(self.rigComms.getStatus()['id'] > self.updateIDref):
+				if(self.rigComms.getStatus()['status']['state']!= 'IDLE' and self.rigComms.getStatus()['status']['state']!= 'IDLE_PRES'):
+					self.subStateStep =1
+				else:
+					self.subStateStep =3
 	
 	def controlLoop(self):
 		self.stateFunctions = {'PRIME':self.primeLoop, 'IDLE':self.idleLoop, 'LEAKAGE_TEST':self.leakTestLoop}
