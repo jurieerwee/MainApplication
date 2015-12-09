@@ -55,7 +55,10 @@ class Comms(object):
 		#This method waits for 1 second to receive a msg and adds it to the queue if there is.  It is the caller's responsibility to implement a loop.  This allows for expansion of the method.
 		ready = select.select([self.socket],[],[],1)
 		if(len(ready[0])!=0):
-			data = (self.socket.recv(self.BUFFER_SIZE)).decode("utf-8").split('\n')[0]  #Read and translate received message into correct format.
+			data = self.socket.recv(self.BUFFER_SIZE)
+			if(not data):
+				return False	#Socket closed.
+			data = (data).decode("utf-8").split('\n')[0]  #Read and translate received message into correct format.
 			self.recvQ.put(data)
 			return True
 		else:
@@ -103,6 +106,8 @@ class RigComms(Comms):
 			received = Comms.receive(self)
 			if(received == False):
 				silenceCounter +=1
+				if(silenceCounter >10):
+					self.terminateComms()
 			else:
 				silenceCounter = 0
 				try:
@@ -122,7 +127,7 @@ class RigComms(Comms):
 						print('invalid key: ', key)
 				except ValueError as e:
 					#Log invalid msg
-					print("Invalid msg")
+					print("Invalid msg:", msgString)
 			self.recvLock.release()
 			
 	def popRecvMsg(self):
