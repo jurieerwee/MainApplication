@@ -286,6 +286,9 @@ class Control(object):
 					self.updateIDref = self.rigComms.getStatus()['id']
 					self.nextState()
 					self.subStateStep =1
+					with open('testResults.txt','wb') as resultsFile:
+						for datapoint in self.results:
+							resultsFile.write(datapoint)
 				else:
 					self.uiComms.sendWarning({'id':8,'msg': 'Final idle command unsuccessful. Returning to IDLE'})
 					self.state = 'IDLE'
