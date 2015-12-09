@@ -258,7 +258,8 @@ class Control(object):
 					self.subStateStep += 1
 					print('Continue to step 11')
 				else:
-					self.subStateStep = 3 	#Jump back to set pressure step
+					self.subStateStep = 4 	#Jump back to set pressure step
+					print ('Return to step3')
 			elif(self.timer1Passed == True): #No flow
 				result =  {'setPressure':self.pressureSequence[self.pressSeqCounter-1],'avePressure':status['setData']['pressure'],'aveFlow': 0}
 				self.results.append(result)
