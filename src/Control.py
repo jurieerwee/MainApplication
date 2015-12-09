@@ -289,7 +289,7 @@ class Control(object):
 					self.subStateStep =1
 					with open('testResults.txt','wb') as resultsFile:
 						for datapoint in self.results:
-							resultsFile.write(datapoint)
+							resultsFile.write(str(datapoint))
 				else:
 					self.uiComms.sendWarning({'id':8,'msg': 'Final idle command unsuccessful. Returning to IDLE'})
 					self.state = 'IDLE'
