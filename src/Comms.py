@@ -80,6 +80,7 @@ class Comms(object):
 		with self.transmitCV:
 			self.terminate = True
 			self.transmitCV.notify()
+			
 
 class RigComms(Comms):
 	'''
