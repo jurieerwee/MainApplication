@@ -152,6 +152,7 @@ class Control(object):
 			self.timer1Passed = False
 			self.timer1 = threading.Timer(10,stopTimer1) #TODO: make settling time configurable
 			self.timer1.start()
+			logging.info('Step1 of leakageTest done')
 			
 		def step2():
 			''' Wait for reply on startPump command. Continue to next step'''
@@ -356,24 +357,29 @@ class Control(object):
 		if(self.state != 'IDLE'):
 			return False
 		self.state = 'PRIME'
+		self.subStateStep = 1
 		return True
 	def startFill(self):
 		if(self.state != 'IDLE'):
 			return False
 		self.state = 'FILL'
+		self.subStateStep = 1
 		return True
 	def startForceFill(self):
 		if(self.state != 'IDLE'):
 			return False
 		self.state = 'FORCEFILL'
+		self.subStateStep = 1
 		return True	
 	def startIdle(self):	#Same as an stop command
 		self.state = 'IDLE'
+		self.subStateStep = 1
 		return True
 	def startPump(self):
 		if(self.state != 'IDLE'):
 			return False
 		self.state = 'PUMP'
+		self.subStateStep = 1
 		return True
 	def startSetPressure(self):
 		return False	#Not yet correctly implemented.
@@ -381,11 +387,13 @@ class Control(object):
 		if(self.state != 'IDLE'):
 			return False
 		self.state = 'LEAKAGE_TEST'
+		self.subStateStep = 1
 		return True
 	def startOverrive(self):
 		if(self.state != 'IDLE'):
 			return False
 		self.state = 'OVERRIDE'
+		self.subStateStep = 1
 	def startIsolationTest(self):
 		return False #not yet implemented
 	def startDataUpload(self):
@@ -401,9 +409,9 @@ class Control(object):
 	
 	def cmdInterpret(self,cmd):		
 		cmdID = None
-		cmdDict = {'modeCMD':{'auto_continue':self.enable_auto_continue, 'stepthrough':self.enable_stepthrough,'singlestate':self.enable_singlestate}\
-				,'stateCMD':{'prime':self.startPrime,'fill':self.startFill,'forceFill':self.startForceFill,'idle':self.startIdle,'pump':self.startPump,'setPressure':self.startSetPressure\
-							,'error':self.startError,'override':self.startOverrive,'leakageTest':self.startLeakageTest(),'continue':self.continueCmd, 'preempt':self.preemptCmd}  \
+		cmdDict = {"modeCMD":{"auto_continue":self.enable_auto_continue, "stepthrough":self.enable_stepthrough,"singlestate":self.enable_singlestate}\
+				,"stateCMD":{"prime":self.startPrime,"fill":self.startFill,"forceFill":self.startForceFill,"idle":self.startIdle,"pump":self.startPump,"setPressure":self.startSetPressure\
+							,"error":self.startError,"override":self.startOverrive,"leakageTest":self.startLeakageTest,"continue":self.continueCmd, "preempt":self.preemptCmd}  \
 				}
 		reply = {}
 		
@@ -411,12 +419,15 @@ class Control(object):
 			cmdID = cmd['id']
 			cmdType = cmd['type']
 			instr = cmd['instr']
-			reply = cmdDict[cmdType][instr]()
-			reply.update({'success':True,'code':reply,'id':cmdID})
-		except:
+			response = cmdDict[cmdType][instr]()
+			reply.update({'success':True,'code':response,'id':cmdID})
+			logging.info('Command successfull: ' + json.dumps(cmd))
+		except ValueError as e:
 			if(cmdID):
 				reply.update({'success':False,'id':cmdID})
-			logging.error('Invalid command: '+cmd)
+			logging.error('Invalid command: '+json.dumps(cmd))
+			logging.exception(e)
+			raise
 				
 		if(reply):
 			self.uiComms.sendReply(reply)
