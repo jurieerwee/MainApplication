@@ -21,7 +21,7 @@ def initLogging():
 initLogging()
 
 try:
-	rigComms = RigComms('172.168.0.63',5000)
+	rigComms = RigComms('localhost',5000)
 except (socket.error):
 	print('rigComms init failed')
 	exit()
@@ -35,7 +35,7 @@ except (socket.error):
 # 	
 # uiComms = UIComms()
 try:	
-	uiComms = UIComms('172.168.0.63',5001)
+	uiComms = UIComms('localhost',5001)
 except (socket.error):
 	logging.error('uiComms init failed')
 	sys.exit()
