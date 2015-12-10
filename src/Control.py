@@ -129,9 +129,17 @@ class Control(object):
 		def step1():
 			logging.error('In error state')
 			self.subStateStep +=1
+			
+		def step2():
+			if(self.rigComms.getState()['status']['state']!='ERROR'):
+				self.state = 'IDLE'
+				self.subStateStep = 1
 		
 		if(self.subStateStep ==1):
 			step1()
+		elif(self.subStateStep==2):
+			step2()
+			
 	
 	def leakTestLoop(self):
 		def stopTimer1():
@@ -412,11 +420,18 @@ class Control(object):
 				
 		if(reply):
 			self.uiComms.sendReply(reply)
+			
+	def sendUpdate(self):
+		self.updateTimer = threading.Timer(0.5,self.sendUpdate)
+		self.updateTimer.start()
+		update = {'mode':self.mode,'state':self.state,'step':self.subStateStep, 'results': self.results}
+		self.uiComms.sendUpdate(update)
 	
 	def controlLoop(self):
 		self.stateFunctions = {'PRIME':self.primeLoop, 'IDLE':self.idleLoop, 'LEAKAGE_TEST':self.leakTestLoop}
 		logging.info('Started controlLoop')
 		
+		self.sendUpdate()
 		
 		while(True):
 			if(self.rigComms.getStatus()['status']['state']=='ERROR' and self.state != 'ERROR'):
