@@ -7,6 +7,7 @@ Created on 23 Nov 2015
 
 import threading
 import logging
+import json
 
 class Control(object):
 	'''
@@ -287,9 +288,9 @@ class Control(object):
 					self.updateIDref = self.rigComms.getStatus()['id']
 					self.nextState()
 					self.subStateStep =1
-					with open('testResults.txt','wb') as resultsFile:
+					with open('testResults.txt','wt') as resultsFile:
 						for datapoint in self.results:
-							resultsFile.write(str(datapoint))
+							json.dump(datapoint,resultsFile,indent=4)
 				else:
 					self.uiComms.sendWarning({'id':8,'msg': 'Final idle command unsuccessful. Returning to IDLE'})
 					self.state = 'IDLE'
