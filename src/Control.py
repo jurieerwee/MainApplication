@@ -42,8 +42,8 @@ class Control(object):
 		'''
 		Constructor
 		'''
-		self.state = 'LEAKAGE_TEST'
-		self.mode = 'AUTO_CONTINUE'
+		self.state = 'IDLE'
+		self.mode = 'SINGLE_STATE'
 		self.rigComms = _rigComms
 		self.uiComms = _uiComms
 		self.subStateStep = 1
@@ -61,7 +61,9 @@ class Control(object):
 		
 	def nextState(self):
 		logging.info('Next state')
-		self.state = 'IDLE'
+		if(self.mode == 'SINGLE_STATE'):
+			self.state = 'IDLE'
+		
 		self.subStateStep = 1
 
 	def primeLoop(self):
@@ -123,6 +125,13 @@ class Control(object):
 		
 	primeLoop.stopFill = False
 	
+	def errorLoop(self):
+		def step1():
+			logging.error('In error state')
+			self.subStateStep +=1
+		
+		if(self.subStateStep ==1):
+			step1()
 	
 	def leakTestLoop(self):
 		def stopTimer1():
@@ -325,21 +334,98 @@ class Control(object):
 				else:
 					self.subStateStep =3
 	
+	'''Messing interpret methods'''
+	def enable_auto_continue(self):
+		self.mode = 'AUTO_CONTINUE'
+		return True
+	def enable_stepthrough(self):
+		self.mode = 'STEP_THROUGH'
+		return True
+	def enable_singlestate(self):
+		self.mode = 'SINGLE_STATE'
+		return True
+	def startPrime(self): #For command use only
+		if(self.state != 'IDLE'):
+			return False
+		self.state = 'PRIME'
+		return True
+	def startFill(self):
+		if(self.state != 'IDLE'):
+			return False
+		self.state = 'FILL'
+		return True
+	def startForceFill(self):
+		if(self.state != 'IDLE'):
+			return False
+		self.state = 'FORCEFILL'
+		return True	
+	def startIdle(self):	#Same as an stop command
+		self.state = 'IDLE'
+		return True
+	def startPump(self):
+		if(self.state != 'IDLE'):
+			return False
+		self.state = 'PUMP'
+		return True
+	def startSetPressure(self):
+		return False	#Not yet correctly implemented.
+	def startLeakageTest(self):	
+		if(self.state != 'IDLE'):
+			return False
+		self.state = 'LEAKAGE_TEST'
+		return True
+	def startOverrive(self):
+		if(self.state != 'IDLE'):
+			return False
+		self.state = 'OVERRIDE'
+	def startIsolationTest(self):
+		return False #not yet implemented
+	def startDataUpload(self):
+		return False #not yet implemented
+	def startError(self):
+		return False
+	def continueCmd(self):
+		self.nextState()
+		return True
+	def preemptCmd(self):
+		self.preempt = True
+		return True
+	
+	def cmdInterpret(self,cmd):		
+		cmdID = None
+		cmdDict = {'modeCMD':{'auto_continue':self.enable_auto_continue, 'stepthrough':self.enable_stepthrough,'singlestate':self.enable_singlestate}\
+				,'stateCMD':{'prime':self.startPrime,'fill':self.startFill,'forceFill':self.startForceFill,'idle':self.startIdle,'pump':self.startPump,'setPressure':self.startSetPressure\
+							,'error':self.startError,'override':self.startOverrive,'leakageTest':self.startLeakageTest(),'continue':self.continueCmd, 'preempt':self.preemptCmd}  \
+				}
+		reply = {}
+		
+		try:
+			cmdID = cmd['id']
+			cmdType = cmd['type']
+			instr = cmd['instr']
+			reply = cmdDict[cmdType][instr]()
+			reply.update({'success':True,'code':reply,'id':cmdID})
+		except:
+			if(cmdID):
+				reply.update({'success':False,'id':cmdID})
+			logging.error('Invalid command: '+cmd)
+				
+		if(reply):
+			self.uiComms.sendReply(reply)
+	
 	def controlLoop(self):
 		self.stateFunctions = {'PRIME':self.primeLoop, 'IDLE':self.idleLoop, 'LEAKAGE_TEST':self.leakTestLoop}
 		logging.info('Started controlLoop')
 		
-		gotCMD = False
-		while(gotCMD == False):
-			try:
-				self.uiComms.getCmd()
-				gotCMD = True
-			except:
-				gotCMD = False
 		
 		while(True):
+			if(self.rigComms.getStatus()['status']['state']=='ERROR' and self.state != 'ERROR'):
+				self.state = 'ERROR'
+				self.subStateStep = 1;
 			self.stateFunctions[self.state]()
-			
+			cmd = self.uiComms.getCmd()
+			if(cmd):
+				self.cmdInterpret(cmd)
 			
 
 		

@@ -219,7 +219,10 @@ class UIComms(Comms):
 		self.pushTransMsg(msg)
 
 	def getCmd(self):  #Raises and empty exception if no command
-		return self.commandsQ.get_nowait()
+		try:
+			return self.commandsQ.get_nowait()
+		except:
+			return None
 		
 	def sendAppStatus(self,status):
 		obj = {}
