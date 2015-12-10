@@ -16,7 +16,7 @@ import sys
 import logging
 
 def initLogging():
-	logging.basicConfig(filename='mainAppLog.log',level=logging.INFO, format='[%(asctime)s] %(levelname)s: %(message)s')
+	logging.basicConfig(filename='mainAppLog.log',filemode = 'w',level=logging.INFO, format='[%(asctime)s] %(levelname)s: %(message)s')
 
 initLogging()
 
