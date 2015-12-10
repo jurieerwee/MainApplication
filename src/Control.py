@@ -425,7 +425,7 @@ class Control(object):
 		self.updateTimer = threading.Timer(0.5,self.sendUpdate)
 		self.updateTimer.start()
 		update = {'mode':self.mode,'state':self.state,'step':self.subStateStep, 'results': self.results}
-		self.uiComms.sendUpdate(update)
+		self.uiComms.sendAppStatus(update)
 	
 	def controlLoop(self):
 		self.stateFunctions = {'PRIME':self.primeLoop, 'IDLE':self.idleLoop, 'LEAKAGE_TEST':self.leakTestLoop}
