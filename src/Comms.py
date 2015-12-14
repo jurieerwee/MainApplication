@@ -33,6 +33,9 @@ class Comms(object):
 		self.BUFFER_SIZE = 1024
 		self.socket = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
 		self.socket.connect((self.ipAddress, self.portNumber))
+		
+		self.fdw = self.socket.makefile('w')
+		self.fdr = self.socket.makefile('r')
 
 		
 		self.terminate = False
@@ -47,19 +50,21 @@ class Comms(object):
 				
 			if(self.transQ.empty() == False):
 				msg = self.transQ.get_nowait()
-				if(type(msg) is str):
-					msg = msg.encode()
-				self.socket.send(msg)
-				#print('Sending msg:',msg)
+				if(type(msg) is not str):
+					#msg = msg.encode()
+					msg = msg.decode("utf-8")
+					
+				#self.socket.send(msg) #must be encoded
+				msg = msg.strip() + '\n'	#Ensures messages ends with a newline.
+				self.fdw.write(msg) #must be decoded
+				self.fdw.flush()
 	
 	def receive(self):
 		#This method waits for 1 second to receive a msg and adds it to the queue if there is.  It is the caller's responsibility to implement a loop.  This allows for expansion of the method.
-		ready = select.select([self.socket],[],[],1)
+		ready = select.select([self.fdr],[],[self.fdr],1)
 		if(len(ready[0])!=0):
-			data = self.socket.recv(self.BUFFER_SIZE)
-			if(not data):
-				return False	#Socket closed.
-			data = (data).decode("utf-8").split('\n')[0]  #Read and translate received message into correct format.
+			#data = self.socket.recv(self.BUFFER_SIZE)
+			data = self.frd.readline().strip()
 			self.recvQ.put(data)
 			return True
 		else:
@@ -102,31 +107,28 @@ class RigComms(Comms):
 		self.recvLock = threading.Lock()
 		
 	def receive(self):
-		silenceCounter = 0
 		while(self.terminate == False):
 			self.recvLock.acquire()
 			received = Comms.receive(self)
-			if(received == False):
-				silenceCounter +=1
-				if(silenceCounter >10):
-					self.terminateComms()
-			else:
-				silenceCounter = 0
+			if(received==True):
 				try:
 					msgString = self.recvQ.get()
-					msg = json.loads(msgString)
-					key = next(iter(msg.keys()))
-					if(key == 'update'):
-						self.status = msg['update']
-						self.status.update({'id':self.updateID}) 	#Also add an ID to the update
-						self.updateID +=1
-						if(hasattr(self,'UI')):	 #If attribute UI has been added by activateRigToUI(), forward the rig status
-							self.UI.pushTransMsg(msgString + '\n')
-					elif(key == 'reply'):
-						self.replies[msg['reply']['id']] = msg['reply']
+					if(not msgString):
+						self.terminateComms()	#Socket closed
 					else:
-						#Log invalid key
-						logging.warning('invalid key: ', key)
+						msg = json.loads(msgString)
+						key = next(iter(msg.keys()))
+						if(key == 'update'):
+							self.status = msg['update']
+							self.status.update({'id':self.updateID}) 	#Also add an ID to the update
+							self.updateID +=1
+							if(hasattr(self,'UI')):	 #If attribute UI has been added by activateRigToUI(), forward the rig status
+								self.UI.pushTransMsg(msgString + '\n')
+						elif(key == 'reply'):
+							self.replies[msg['reply']['id']] = msg['reply']
+						else:
+							#Log invalid key
+							logging.warning('invalid key: ', key)
 				except ValueError as e:
 					#Log invalid msg
 					logging.warning("Invalid msg:", msgString)
@@ -179,30 +181,29 @@ class UIComms(Comms):
 		Comms.__init__(self, tcpIP, tcpPort)
 		
 	def receive(self):
-		silenceCounter = 0
 		while(self.terminate == False):
 			self.recvLock.acquire()
 			received = Comms.receive(self)
-			if(received == False):
-				silenceCounter +=1
-			else:
-				silenceCounter = 0
+			if(received == True):
 				try:
 					msgString = self.recvQ.get()
-					msg = json.loads(msgString)
-					key = next(iter(msg.keys()))
-					if(key == 'updateUI'):
-						self.status = msg['updateUI']
-						#TODO parse status to UI
-					elif(key == 'cmd'):
-						self.commandsQ.put_nowait(msg['cmd'])
-					elif(key == 'msg'):
-						if(hasattr(self,'rig')):	 #If attribute rig has been added by activateUItoRig(), forward msg to rig
-							self.rig.pushTransMsg(msgString + '\n')
-							logging.info('Msg forwarded')
+					if(not msgString):
+						self.terminateComms()
 					else:
-						#Log invalid key
-						logging.warning('invalid key: ', key)
+						msg = json.loads(msgString)
+						key = next(iter(msg.keys()))
+						if(key == 'updateUI'):
+							self.status = msg['updateUI']
+							#TODO parse status to UI
+						elif(key == 'cmd'):
+							self.commandsQ.put_nowait(msg['cmd'])
+						elif(key == 'msg'):
+							if(hasattr(self,'rig')):	 #If attribute rig has been added by activateUItoRig(), forward msg to rig
+								self.rig.pushTransMsg(msgString + '\n')
+								logging.info('Msg forwarded')
+						else:
+							#Log invalid key
+							logging.warning('invalid key: ', key)
 				except ValueError as e:
 					#Log invalid msg
 					logging.warning("Invalid msg")
