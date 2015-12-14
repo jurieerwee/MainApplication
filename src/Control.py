@@ -131,7 +131,7 @@ class Control(object):
 			self.subStateStep +=1
 			
 		def step2():
-			if(self.rigComms.getState()['status']['state']!='ERROR'):
+			if(self.rigComms.getStatus()['state']!='ERROR'):
 				self.state = 'IDLE'
 				self.subStateStep = 1
 		
