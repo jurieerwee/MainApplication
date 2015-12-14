@@ -459,6 +459,7 @@ class Control(object):
 			if((self.resetErrorID +1 < self.rigComms.getStatus()['id']) and self.rigComms.getStatus()['status']['state']=='ERROR' and self.state != 'ERROR'):
 				self.state = 'ERROR'
 				self.subStateStep = 1;
+				self.uiComms.sendError({'id':9,'msg':"Rig in error mode"})
 			self.stateFunctions[self.state]()
 			cmd = self.uiComms.getCmd()
 			if(cmd):
