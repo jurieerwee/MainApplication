@@ -48,6 +48,7 @@ class Control(object):
 		self.uiComms = _uiComms
 		self.subStateStep = 1
 		self.lastID = 0
+		self.resetErrorID = -1 #For the reset of an error
 		
 		#leakageTest
 		self.pressureSequence = [4,3.5,3,2.5,2]
@@ -131,7 +132,7 @@ class Control(object):
 			self.subStateStep +=1
 			
 		def step2():
-			if(self.rigComms.getStatus()['state']!='ERROR'):
+			if(self.rigComms.getStatus()['status']['state']!='ERROR'):
 				self.state = 'IDLE'
 				self.subStateStep = 1
 		
@@ -343,7 +344,7 @@ class Control(object):
 				else:
 					self.subStateStep =3
 	
-	'''Messing interpret methods'''
+	'''Message interpret methods'''
 	def enable_auto_continue(self):
 		self.mode = 'AUTO_CONTINUE'
 		return True
@@ -406,12 +407,22 @@ class Control(object):
 	def preemptCmd(self):
 		self.preempt = True
 		return True
+	def clearError(self):
+		if(self.state == 'ERROR'):
+			self.rigComms.sendCmd(Control.rigCommands['clearErr'])
+			self.state = 'IDLE'
+			self.subStateStep = 1
+			self.resetErrorID = self.rigComms.getStatus()['id']
+			return True
+		else:
+			return False
 	
 	def cmdInterpret(self,cmd):		
 		cmdID = None
 		cmdDict = {"modeCMD":{"auto_continue":self.enable_auto_continue, "stepthrough":self.enable_stepthrough,"singlestate":self.enable_singlestate}\
 				,"stateCMD":{"prime":self.startPrime,"fill":self.startFill,"forceFill":self.startForceFill,"idle":self.startIdle,"pump":self.startPump,"setPressure":self.startSetPressure\
-							,"error":self.startError,"override":self.startOverrive,"leakageTest":self.startLeakageTest,"continue":self.continueCmd, "preempt":self.preemptCmd}  \
+							,"error":self.startError,"override":self.startOverrive,"leakageTest":self.startLeakageTest,"continue":self.continueCmd, "preempt":self.preemptCmd  \
+								,"clearError":self.clearError}
 				}
 		reply = {}
 		
@@ -445,7 +456,7 @@ class Control(object):
 		self.sendUpdate()
 		
 		while(True):
-			if(self.rigComms.getStatus()['status']['state']=='ERROR' and self.state != 'ERROR'):
+			if((self.resetErrorID +1 < self.rigComms.getStatus()['id']) and self.rigComms.getStatus()['status']['state']=='ERROR' and self.state != 'ERROR'):
 				self.state = 'ERROR'
 				self.subStateStep = 1;
 			self.stateFunctions[self.state]()
