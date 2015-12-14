@@ -15,13 +15,21 @@ import time
 import sys
 import logging
 
+uiIP = 'localhost'
+if(len(sys.argv)>1):
+	uiIP = sys.argv[1]
+	
+rigIP = 'localhost'
+if(len(sys.argv)>2):
+	rigIP = sys.argv[2]
+	
 def initLogging():
 	logging.basicConfig(filename='mainAppLog.log',filemode = 'w',level=logging.INFO, format='[%(asctime)s] %(levelname)s: %(message)s')
 
 initLogging()
 
 try:
-	rigComms = RigComms('localhost',5000)
+	rigComms = RigComms(rigIP,5000)
 except (socket.error):
 	print('rigComms init failed')
 	exit()
@@ -35,7 +43,7 @@ except (socket.error):
 # 	
 # uiComms = UIComms()
 try:	
-	uiComms = UIComms('localhost',5001)
+	uiComms = UIComms(uiIP,5001)
 except (socket.error):
 	logging.error('uiComms init failed')
 	sys.exit()
