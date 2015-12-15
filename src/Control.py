@@ -53,6 +53,7 @@ class Control(object):
 		self.subStateStep = 1
 		self.lastID = 0
 		self.resetErrorID = -1 #For the reset of an error
+		self.toBeNextState = None
 		
 		#leakageTest
 		self.pressureSequence = [4,3.5,3,2.5,2]
@@ -72,10 +73,20 @@ class Control(object):
 		
 	def nextState(self):
 		logging.info('Next state')
-		if(self.mode == 'SINGLE_STATE'):
-			self.state = 'IDLE'
+		#stateSequence = ['PRIME','WAIT_ISOLATE','ISOLATE_TEST','LEAKAGE_TEST','DATA_UPLOAD']
+		stateSequence = ['PRIME','WAIT_ISOLATE','LEAKAGE_TEST','DATA_UPLOAD']
 		
-		self.subStateStep = 1
+		if(self.state in stateSequence):
+			nextState_ = stateSequence[stateSequence.index(self.state)+1]
+		else:
+			nextState_ = None
+		if(self.mode == 'SINGLE_STATE' or not nextState_):
+			self.changeState('IDLE')
+		elif(self.mode == 'STEP_THROUGH'):
+			self.toBeNextState = nextState_
+			self.changeState('IDLE')
+		elif(self.mode == 'AUTO_CONTINUE'):
+			self.changeState(nextState_)
 
 	def primeLoop(self):
 		
@@ -419,8 +430,11 @@ class Control(object):
 		self.changeState('ERROR')
 		self.rigComms.sendCmd(Control.rigCommands['error'])
 	def continueCmd(self):
-		self.nextState()
-		return True
+		if(self.mode=='STEP_THROUGH'and self.toBeNextState):
+			self.changeState(self.toBeNextState)
+			return True
+		else:
+			return False
 	def preemptCmd(self):
 		self.preempt = True
 		return True
