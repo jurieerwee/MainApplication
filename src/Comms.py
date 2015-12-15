@@ -139,6 +139,7 @@ class RigComms(Comms):
 					#Log invalid msg
 					print("Invalid msg: %s" % repr(msgString))
 			self.recvLock.release()
+		self.fdr.close()
 			
 	def popRecvMsg(self):
 		if(self.recvLock.acquire(blocking = False)==True):
@@ -173,6 +174,8 @@ class RigComms(Comms):
 	def transmit(self):
 		while(self.terminate != True):
 			Comms.transmit(self)
+		
+		self.fdw.close()
 			
 	def activateRigToUI(self, UI):
 		self.UI = UI
@@ -214,6 +217,7 @@ class UIComms(Comms):
 					#Log invalid msg
 					logging.warning("Invalid msg")
 			self.recvLock.release()
+		self.fdr.close()
 		
 	def getStatus(self):
 		return self.status
@@ -259,6 +263,8 @@ class UIComms(Comms):
 	def transmit(self):
 		while(self.terminate != True):
 			Comms.transmit(self)
+		
+		self.fdw.close()
 		
 	def activateUItoRig(self, rigComms):
 		self.rig = rigComms

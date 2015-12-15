@@ -78,9 +78,12 @@ print(rigComms.getStatus())
 
 ctrl = Control.Control(rigComms,uiComms)
 
-ctrl.controlLoop()
+try:
+	ctrl.controlLoop()
+except KeyboardInterrupt:
+	pass
 
-
+print("Closing comms")
 rigComms.terminateComms()
 uiComms.terminateComms()
 

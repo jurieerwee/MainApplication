@@ -459,32 +459,34 @@ class Control(object):
 		self.stateFunctions = {'PRIME':self.primeLoop, 'IDLE':self.idleLoop, 'LEAKAGE_TEST':self.leakTestLoop, 'ERROR':self.errorLoop}
 		logging.info('Started controlLoop')
 		
-		self.sendUpdate()
-		
-		while(True):
-			if((self.resetErrorID +1 < self.rigComms.getStatus()['id']) and self.rigComms.getStatus()['status']['state']=='ERROR' and self.state != 'ERROR'):
-				self.state = 'ERROR'
-				self.subStateStep = 1;
-				self.uiComms.sendError({'id':9,'msg':"Rig in error mode"})
-			#Comms:
-			if(self.rigActive == True and self.rigComms.terminate == True):
-				self.rigActive = False
-				self.uiComms.sendError({'id':8, 'msg':"Rig comss failed"})
-				logging.error("Rig comms failed")
-				self.state = 'ERROR'
-				self.subStateStep = 1
+		try:
+			self.sendUpdate()
 			
-			if(self.uiActive==True and self.uiComms.terminate == True):
-				self.uiActive = False
-				self.rigComms.sendCmd(Control.rigCommands['error'])
-				logging.error("UI comms failed")
-				self.state = 'ERROR'
-				self.subStateStep = 1
-			
-			self.stateFunctions[self.state]()
-			cmd = self.uiComms.getCmd()
-			if(cmd):
-				self.cmdInterpret(cmd)
-			
+			while(True):
+				if((self.resetErrorID +1 < self.rigComms.getStatus()['id']) and self.rigComms.getStatus()['status']['state']=='ERROR' and self.state != 'ERROR'):
+					self.state = 'ERROR'
+					self.subStateStep = 1;
+					self.uiComms.sendError({'id':9,'msg':"Rig in error mode"})
+				#Comms:
+				if(self.rigActive == True and self.rigComms.terminate == True):
+					self.rigActive = False
+					self.uiComms.sendError({'id':8, 'msg':"Rig comss failed"})
+					logging.error("Rig comms failed")
+					self.state = 'ERROR'
+					self.subStateStep = 1
+				
+				if(self.uiActive==True and self.uiComms.terminate == True):
+					self.uiActive = False
+					self.rigComms.sendCmd(Control.rigCommands['error'])
+					logging.error("UI comms failed")
+					self.state = 'ERROR'
+					self.subStateStep = 1
+				
+				self.stateFunctions[self.state]()
+				cmd = self.uiComms.getCmd()
+				if(cmd):
+					self.cmdInterpret(cmd)
+		finally:
+			self.updateTimer.cancel()
 
 		
