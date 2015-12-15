@@ -404,7 +404,9 @@ class Control(object):
 	def startDataUpload(self):
 		return False #not yet implemented
 	def startError(self):
-		return False
+		self.state = 'ERROR'
+		self.subStateStep = 1
+		self.rigComms.sendCmd(Control.rigCommands['error'])
 	def continueCmd(self):
 		self.nextState()
 		return True
