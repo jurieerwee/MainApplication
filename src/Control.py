@@ -443,6 +443,7 @@ class Control(object):
 			self.rigComms.sendCmd(Control.rigCommands['clearErr'])
 			self.changeState('IDLE')
 			self.resetErrorID = self.rigComms.getStatus()['id']
+			print("Reset ID is ", self.resetErrorID)
 			return True
 		else:
 			return False
@@ -487,24 +488,22 @@ class Control(object):
 			self.sendUpdate()
 			
 			while(True):
-				if((self.resetErrorID +1 < self.rigComms.getStatus()['id']) and self.rigComms.getStatus()['status']['state']=='ERROR' and self.state != 'ERROR'):
-					self.state = 'ERROR'
-					self.subStateStep = 1;
+				if((self.resetErrorID +4 < self.rigComms.getStatus()['id']) and self.rigComms.getStatus()['status']['state']=='ERROR' and self.state != 'ERROR'):
+					self.changeState('ERROR')
 					self.uiComms.sendError({'id':9,'msg':"Rig in error mode"})
+					print("Triggered ID is ", self.rigComms.getStatus()['id'])
 				#Comms:
 				if(self.rigActive == True and self.rigComms.terminate == True):
 					self.rigActive = False
 					self.uiComms.sendError({'id':8, 'msg':"Rig comss failed"})
 					logging.error("Rig comms failed")
-					self.state = 'ERROR'
-					self.subStateStep = 1
+					self.changeState('ERROR')
 				
 				if(self.uiActive==True and self.uiComms.terminate == True):
 					self.uiActive = False
 					self.rigComms.sendCmd(Control.rigCommands['error'])
 					logging.error("UI comms failed")
-					self.state = 'ERROR'
-					self.subStateStep = 1
+					self.changeState('ERROR')
 				
 				self.stateFunctions[self.state]()
 				cmd = self.uiComms.getCmd()
