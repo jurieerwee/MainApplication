@@ -60,6 +60,9 @@ class Control(object):
 		self.timer1Passed = False #Flag for use with timer1.
 		self.results = [] #list of dictionaries for test results
 		
+		#Prompting
+		self.promptID = -1
+		
 		
 	def abort(self):
 		logging.error('Abort')
@@ -144,7 +147,25 @@ class Control(object):
 			step1()
 		#elif(self.subStateStep==2):
 		#	step2()
-			
+		
+	def waitIsolateLoop(self):
+		def step1():
+			prmt = {'type':1,'msg':"Isolate pipe. YES if isolated, NO to cancel",'options':'yesno'}
+			self.promptID = self.uiComms.sendPrompt(prmt)
+			self.subStateStep +=1
+		def step2():
+			reply = self.uiComms.getPromptReply(self.promptID)
+			if(reply):
+				if(reply['reply']=='yes'):
+					self.nextState()
+				else:
+					self.state = 'IDLE'
+					self.subStateStep = 1
+		
+		if(self.subStateStep==1):
+			step1()
+		elif(self.subStateStep==2):
+			step2()
 	
 	def leakTestLoop(self):
 		def stopTimer1():
@@ -399,6 +420,12 @@ class Control(object):
 			return False
 		self.state = 'OVERRIDE'
 		self.subStateStep = 1
+	def startWaitIsolate(self):
+		if(self.state != 'IDLE'):
+			return False
+		self.state = 'WAIT_ISOLATE'
+		self.subStateStep = 1
+		return True
 	def startIsolationTest(self):
 		return False #not yet implemented
 	def startDataUpload(self):
@@ -428,7 +455,7 @@ class Control(object):
 		cmdDict = {"modeCMD":{"auto_continue":self.enable_auto_continue, "stepthrough":self.enable_stepthrough,"singlestate":self.enable_singlestate}\
 				,"stateCMD":{"prime":self.startPrime,"fill":self.startFill,"forceFill":self.startForceFill,"idle":self.startIdle,"pump":self.startPump,"setPressure":self.startSetPressure\
 							,"error":self.startError,"override":self.startOverrive,"leakageTest":self.startLeakageTest,"continue":self.continueCmd, "preempt":self.preemptCmd  \
-								,"clearError":self.clearError}
+								,"clearError":self.clearError, "waitIsolate":self.startWaitIsolate}
 				}
 		reply = {}
 		
@@ -456,7 +483,7 @@ class Control(object):
 		self.uiComms.sendAppStatus(update)
 	
 	def controlLoop(self):
-		self.stateFunctions = {'PRIME':self.primeLoop, 'IDLE':self.idleLoop, 'LEAKAGE_TEST':self.leakTestLoop, 'ERROR':self.errorLoop}
+		self.stateFunctions = {'PRIME':self.primeLoop, 'IDLE':self.idleLoop, 'LEAKAGE_TEST':self.leakTestLoop, 'ERROR':self.errorLoop, 'WAIT_ISOLATE':self.waitIsolateLoop}
 		logging.info('Started controlLoop')
 		
 		try:

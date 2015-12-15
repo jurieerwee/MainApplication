@@ -143,7 +143,8 @@ class RigComms(Comms):
 					#Log invalid msg
 					print("Invalid msg: %s" % repr(msgString))
 			self.recvLock.release()
-		self.fdr.close()
+		if(not self.fdr.closed):
+			self.fdr.close()
 			
 	def popRecvMsg(self):
 		if(self.recvLock.acquire(blocking = False)==True):
@@ -179,7 +180,8 @@ class RigComms(Comms):
 		while(self.terminate != True):
 			Comms.transmit(self)
 		
-		self.fdw.close()
+		if(not self.fdw.closed):
+			self.fdw.close()
 			
 	def activateRigToUI(self, UI):
 		self.UI = UI
@@ -191,6 +193,8 @@ class UIComms(Comms):
 		self.status = {}
 		self.commandsQ = queue.Queue()
 		self.recvLock = threading.Lock()
+		self.promptID = 0
+		self.promptReplies = {}
 		Comms.__init__(self, tcpIP, tcpPort)
 		
 	def receive(self):
@@ -214,14 +218,17 @@ class UIComms(Comms):
 							if(hasattr(self,'rig')):	 #If attribute rig has been added by activateUItoRig(), forward msg to rig
 								self.rig.pushTransMsg(msgString + '\n')
 								logging.info('Msg forwarded')
+						elif(key == 'promptReply'):
+							self.promptReplies.update({msg['promptReply']['id']:msg['promptReply']})
 						else:
 							#Log invalid key
-							logging.warning('invalid key: ', key)
+							logging.warning('invalid key: %s' %key)
 				except ValueError as e:
 					#Log invalid msg
 					logging.warning("Invalid msg")
 			self.recvLock.release()
-		self.fdr.close()
+		if(not self.fdr.closed):
+			self.fdr.close()
 		
 	def getStatus(self):
 		return self.status
@@ -238,6 +245,15 @@ class UIComms(Comms):
 		try:
 			return self.commandsQ.get_nowait()
 		except:
+			return None
+	
+	def getPromptReply(self,ref):
+		if(ref in self.promptReplies):
+			reply = self.promptReplies[ref]
+			del self.promptReplies[ref]
+			return reply
+			
+		else:
 			return None
 		
 	def sendAppStatus(self,status):
@@ -264,11 +280,22 @@ class UIComms(Comms):
 		msg = str.encode(io.getvalue() + '\n')
 		self.pushTransMsg(msg)
 		
+	def sendPrompt(self,prompt):
+		obj = {}
+		obj['prompt'] = prompt
+		obj['prompt'].update({'id':self.promptID})	#Add id
+		self.promptID+=1
+		msg = json.dumps(obj)
+		self.pushTransMsg(msg)
+		
+		return (self.promptID -1) #minus 1 since already incremented.
+		
 	def transmit(self):
 		while(self.terminate != True):
 			Comms.transmit(self)
 		
-		self.fdw.close()
+		if(not self.fdw.closed):
+			self.fdw.close()
 		
 	def activateUItoRig(self, rigComms):
 		self.rig = rigComms
