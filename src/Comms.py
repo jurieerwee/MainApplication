@@ -77,11 +77,15 @@ class Comms(object):
 			
 	def pushTransMsg(self, msg):
 		#This method adds a msg to the transmit Q and notifies the thread.
+		if(self.terminate == True):
+			return False
+		
 		with self.transmitCV:
 			self.transQ.put(msg)
 			self.transmitCV.notify()
 		
-   
+		return True
+
 	def popRecvMsg(self):
 		#Will raise Empty exception if there is no message in the Q
 		return self.recvQ.get_nowait()
