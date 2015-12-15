@@ -64,8 +64,10 @@ class Comms(object):
 		ready = select.select([self.fdr],[],[self.fdr],1)
 		if(len(ready[0])!=0):
 			#data = self.socket.recv(self.BUFFER_SIZE)
-			data = self.frd.readline().strip()
-			self.recvQ.put(data)
+			data = self.fdr.readline()#.strip()
+			#if(type(data) is not str):
+			#	data = data.decode("utf-8")
+			self.recvQ.put(data.strip('\x00'))
 			return True
 		else:
 			return False
@@ -116,7 +118,8 @@ class RigComms(Comms):
 					if(not msgString):
 						self.terminateComms()	#Socket closed
 					else:
-						msg = json.loads(msgString)
+						msg = json.loads(msgString)#,encoding='utf-8')
+						#print("success msg: ", msgString)
 						key = next(iter(msg.keys()))
 						if(key == 'update'):
 							self.status = msg['update']
@@ -128,10 +131,10 @@ class RigComms(Comms):
 							self.replies[msg['reply']['id']] = msg['reply']
 						else:
 							#Log invalid key
-							logging.warning('invalid key: ', key)
+							logging.warning('invalid key:%s' % key)
 				except ValueError as e:
 					#Log invalid msg
-					logging.warning("Invalid msg:", msgString)
+					print("Invalid msg: %s" % repr(msgString))
 			self.recvLock.release()
 			
 	def popRecvMsg(self):
