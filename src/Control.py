@@ -38,6 +38,7 @@ class Control(object):
 	rigCommands['closeOutflowVavle'] = {'type':'manual','instr':'closeOutflowVavle'}
 	rigCommands['openReleaseVavle'] = {'type':'manual','instr':'openReleaseVavle'}
 	rigCommands['closeReleaseVavle'] = {'type':'manual','instr':'closeReleaseVavle'}
+	rigCommands['error'] = {'type':'stateCMD','instr':'error'}
 
 	def __init__(self, _rigComms, _uiComms):
 		'''
