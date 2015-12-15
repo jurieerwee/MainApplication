@@ -56,18 +56,21 @@ class Comms(object):
 					
 				#self.socket.send(msg) #must be encoded
 				msg = msg.strip() + '\n'	#Ensures messages ends with a newline.
-				self.fdw.write(msg) #must be decoded
-				self.fdw.flush()
+				try:
+					self.fdw.write(msg) #must be decoded
+					self.fdw.flush()
+				except socket.error:
+					self.terminateComms()
 	
 	def receive(self):
 		#This method waits for 1 second to receive a msg and adds it to the queue if there is.  It is the caller's responsibility to implement a loop.  This allows for expansion of the method.
 		ready = select.select([self.fdr],[],[self.fdr],1)
 		if(len(ready[0])!=0):
-			#data = self.socket.recv(self.BUFFER_SIZE)
-			data = self.fdr.readline()#.strip()
-			#if(type(data) is not str):
-			#	data = data.decode("utf-8")
-			self.recvQ.put(data.strip('\x00'))
+			try:
+				data = self.fdr.readline()#.strip()
+				self.recvQ.put(data.strip('\x00'))
+			except socket.error:
+				self.recvQ.put(None)
 			return True
 		else:
 			return False
