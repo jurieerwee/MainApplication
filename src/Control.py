@@ -8,6 +8,7 @@ Created on 23 Nov 2015
 import threading
 import logging
 import json
+from Comms import UIComms
 
 class Control(object):
 	'''
@@ -45,6 +46,8 @@ class Control(object):
 		self.state = 'IDLE'
 		self.mode = 'SINGLE_STATE'
 		self.rigComms = _rigComms
+		self.rigActive = True
+		self.uiActive = True
 		self.uiComms = _uiComms
 		self.subStateStep = 1
 		self.lastID = 0
@@ -138,8 +141,8 @@ class Control(object):
 		
 		if(self.subStateStep ==1):
 			step1()
-		elif(self.subStateStep==2):
-			step2()
+		#elif(self.subStateStep==2):
+		#	step2()
 			
 	
 	def leakTestLoop(self):
@@ -460,6 +463,21 @@ class Control(object):
 				self.state = 'ERROR'
 				self.subStateStep = 1;
 				self.uiComms.sendError({'id':9,'msg':"Rig in error mode"})
+			#Comms:
+			if(self.rigActive == True and self.rigComms.terminate == True):
+				self.rigActive = False
+				self.uiComms.sendError({'id':8, 'msg':"Rig comss failed"})
+				logging.error("Rig comms failed")
+				self.state = 'ERROR'
+				self.subStateStep = 1
+			
+			if(self.uiActive==True and self.uiComms.terminate == True):
+				self.uiActive = False
+				self.rigComms.sendCmd(Control.rigCommands['error'])
+				logging.error("UI comms failed")
+				self.state = 'ERROR'
+				self.subStateStep = 1
+			
 			self.stateFunctions[self.state]()
 			cmd = self.uiComms.getCmd()
 			if(cmd):
