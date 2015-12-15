@@ -63,7 +63,10 @@ class Control(object):
 		#Prompting
 		self.promptID = -1
 		
-		
+	def changeState(self,newState):	
+		self.state = newState
+		self.subStateStep =1
+	
 	def abort(self):
 		logging.error('Abort')
 		
@@ -88,8 +91,7 @@ class Control(object):
 			else:
 				self.uiComms.sendWarning({'id':2,'msg':'No system pressure. Returning to IDLE.'})
 				logging.warning('No system pressure')
-				self.state = 'IDLE'
-				self.subStateStep =1
+				self.changeState('IDLE')
 		
 		def step2():
 			'''
@@ -107,8 +109,7 @@ class Control(object):
 					logging.info('Continue to step 3')
 				else:
 					self.uiComms.sendWarning({'id':1,'msg': 'Prime command unsuccessful. Returning to IDLE'})
-					self.state = 'IDLE'
-					self.subStateStep =1
+					self.changeState('IDLE')
 			#TODO: Timeout on reply
 		
 		def step3():
@@ -140,8 +141,7 @@ class Control(object):
 			
 		def step2():
 			if(self.rigComms.getStatus()['status']['state']!='ERROR'):
-				self.state = 'IDLE'
-				self.subStateStep = 1
+				self.changeState('IDLE')
 		
 		if(self.subStateStep ==1):
 			step1()
@@ -159,8 +159,7 @@ class Control(object):
 				if(reply['reply']=='yes'):
 					self.nextState()
 				else:
-					self.state = 'IDLE'
-					self.subStateStep = 1
+					self.changeState('IDLE')
 		
 		if(self.subStateStep==1):
 			step1()
@@ -193,8 +192,7 @@ class Control(object):
 					logging.info('Continue to step 3')
 				else:
 					self.uiComms.sendWarning({'id':3,'msg': 'Start pump command unsuccessful. Returning to IDLE'})
-					self.state = 'IDLE'
-					self.subStateStep =1
+					self.changeState('IDLE')
 					
 		def step3():
 			'''Wait for a few seconds before continuing in order for the pump to settle'''
@@ -226,8 +224,7 @@ class Control(object):
 					logging.info('Continue to step 6')
 				else:
 					self.uiComms.sendWarning({'id':4,'msg': 'Set pressure command unsuccessful. Returning to IDLE'})
-					self.state = 'IDLE'
-					self.subStateStep =1
+					self.changeState('IDLE')
 		
 		def step6():
 			'''Wait for reply on newPressure command. Start settling timer of 1minute.'''
@@ -245,8 +242,7 @@ class Control(object):
 					logging.info('Continue to step 7')
 				else:
 					self.uiComms.sendWarning({'id':5,'msg': 'New pressure command unsuccessful. Returning to IDLE'})
-					self.state = 'IDLE'
-					self.subStateStep =1
+					self.changeState('IDLE')
 		
 		def step7():
 			'''Wait for settling period to pass.  Consider that rig in correct state. Reset the rig counters.'''
@@ -262,8 +258,7 @@ class Control(object):
 					self.minMeasureTimePassed = False
 				else:
 					self.uiComms.sendWarning({'id':6,'msg':'Rig in wrong state after settling.'})
-					self.state = 'IDLE'
-					self.subStateStep =1
+					self.changeState('IDLE')
 					
 		def step8():
 			''' Wait for reply on resetCounters cmd. Continue to next step'''
@@ -278,8 +273,7 @@ class Control(object):
 					logging.info('Continue to step 9')
 				else:
 					self.uiComms.sendWarning({'id':7,'msg': 'Reset counters command unsuccessful. Returning to IDLE'})
-					self.state = 'IDLE'
-					self.subStateStep =1
+					self.changeState('IDLE')
 					
 		def step9():
 			'''Continue to next step once minimum measuring time has passed.  Also start the no-flow timeout'''
@@ -337,8 +331,7 @@ class Control(object):
 							json.dump(datapoint,resultsFile,indent=4)
 				else:
 					self.uiComms.sendWarning({'id':8,'msg': 'Final idle command unsuccessful. Returning to IDLE'})
-					self.state = 'IDLE'
-					self.subStateStep =1
+					self.changeState('IDLE')
 					
 		stepsDict = {}
 		stepsDict[1] = step1
@@ -382,57 +375,48 @@ class Control(object):
 	def startPrime(self): #For command use only
 		if(self.state != 'IDLE'):
 			return False
-		self.state = 'PRIME'
-		self.subStateStep = 1
+		self.changeState('PRIME')
 		return True
 	def startFill(self):
 		if(self.state != 'IDLE'):
 			return False
-		self.state = 'FILL'
-		self.subStateStep = 1
+		self.changeState('FILL')
 		return True
 	def startForceFill(self):
 		if(self.state != 'IDLE'):
 			return False
-		self.state = 'FORCEFILL'
-		self.subStateStep = 1
+		self.changeState('FORCEFILL')
 		return True	
 	def startIdle(self):	#Same as an stop command
-		self.state = 'IDLE'
-		self.subStateStep = 1
+		self.changeState('IDLE')
 		return True
 	def startPump(self):
 		if(self.state != 'IDLE'):
 			return False
-		self.state = 'PUMP'
-		self.subStateStep = 1
+		self.changeState('PUMP')
 		return True
 	def startSetPressure(self):
 		return False	#Not yet correctly implemented.
 	def startLeakageTest(self):	
 		if(self.state != 'IDLE'):
 			return False
-		self.state = 'LEAKAGE_TEST'
-		self.subStateStep = 1
+		self.changeState('LEAKAGE_TEST')
 		return True
 	def startOverrive(self):
 		if(self.state != 'IDLE'):
 			return False
-		self.state = 'OVERRIDE'
-		self.subStateStep = 1
+		self.changeState('OVERRIDE')
 	def startWaitIsolate(self):
 		if(self.state != 'IDLE'):
 			return False
-		self.state = 'WAIT_ISOLATE'
-		self.subStateStep = 1
+		self.changeState('WAIT_ISOLATE')
 		return True
 	def startIsolationTest(self):
 		return False #not yet implemented
 	def startDataUpload(self):
 		return False #not yet implemented
 	def startError(self):
-		self.state = 'ERROR'
-		self.subStateStep = 1
+		self.changeState('ERROR')
 		self.rigComms.sendCmd(Control.rigCommands['error'])
 	def continueCmd(self):
 		self.nextState()
@@ -443,8 +427,7 @@ class Control(object):
 	def clearError(self):
 		if(self.state == 'ERROR'):
 			self.rigComms.sendCmd(Control.rigCommands['clearErr'])
-			self.state = 'IDLE'
-			self.subStateStep = 1
+			self.changeState('IDLE')
 			self.resetErrorID = self.rigComms.getStatus()['id']
 			return True
 		else:
