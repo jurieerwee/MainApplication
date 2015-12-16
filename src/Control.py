@@ -418,6 +418,7 @@ class Control(object):
 		self.changeState('LEAKAGE_TEST')
 		return True
 	def startOverrive(self):
+		return False #Not yet implemented.
 		if(self.state != 'IDLE'):
 			return False
 		self.changeState('OVERRIDE')
@@ -509,7 +510,13 @@ class Control(object):
 					logging.error("UI comms failed")
 					self.changeState('ERROR')
 				
-				self.stateFunctions[self.state]()
+				try:
+					self.stateFunctions[self.state]()
+				except KeyError:
+					self.changeState('ERROR')
+					self.rigComms(Control.rigCommands['error'])	
+					
+				
 				cmd = self.uiComms.getCmd()
 				if(cmd):
 					self.cmdInterpret(cmd)
