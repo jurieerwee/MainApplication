@@ -251,7 +251,7 @@ class Control(object):
 					self.subStateStep += 1
 					self.updateIDref = self.rigComms.getStatus()['id']
 					self.timer1Passed = False
-					self.timer1 = threading.Timer(self.config['leakageTest'].get('pressureSettlingPeriod',60),stopTimer1) #TODO: make settling time configurable
+					self.timer1 = threading.Timer(float(self.config['leakageTest'].get('pressureSettlingPeriod',60)),stopTimer1) #TODO: make settling time configurable
 					self.timer1.start()
 					logging.info('Continue to step 7')
 				else:
