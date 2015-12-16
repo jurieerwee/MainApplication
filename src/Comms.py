@@ -43,24 +43,24 @@ class Comms(object):
 		
 	def transmit(self):
 		#This method will wait on condition variable, notified by a msg added to the Q. It will however only send a single msg.  It is the caller responsibility to add the loop.  Allowing expansion of the method.
-		with self.transmitCV:
 			#print ('Entered transmit threaed') 
-			while (self.transQ.empty() == True and not self.terminate):
-				self.transmitCV.wait()
+		try:
+			msg = self.transQ.get(timeout=1)
+			if(type(msg) is not str):
+				#msg = msg.encode()
+				msg = msg.decode("utf-8")
 				
-			if(self.transQ.empty() == False):
-				msg = self.transQ.get_nowait()
-				if(type(msg) is not str):
-					#msg = msg.encode()
-					msg = msg.decode("utf-8")
-					
-				#self.socket.send(msg) #must be encoded
-				msg = msg.strip() + '\n'	#Ensures messages ends with a newline.
-				try:
-					self.fdw.write(msg) #must be decoded
-					self.fdw.flush()
-				except socket.error:
-					self.terminateComms()
+			#self.socket.send(msg) #must be encoded
+			msg = msg.strip() + '\n'	#Ensures messages ends with a newline.
+			try:
+				self.fdw.write(msg) #must be decoded
+				self.fdw.flush()
+			except socket.error:
+				self.terminateComms()
+		except queue.Empty:
+			pass
+		
+		#The outer trasmit will reinstantiate the function
 	
 	def receive(self):
 		#This method waits for 1 second to receive a msg and adds it to the queue if there is.  It is the caller's responsibility to implement a loop.  This allows for expansion of the method.
@@ -80,9 +80,7 @@ class Comms(object):
 		if(self.terminate == True):
 			return False
 		
-		with self.transmitCV:
-			self.transQ.put(msg)
-			self.transmitCV.notify()
+		self.transQ.put(msg)
 		
 		return True
 
