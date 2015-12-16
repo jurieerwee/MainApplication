@@ -294,7 +294,12 @@ class Control(object):
 			if(self.timer1Passed == True): #Minimum measuring time passed.
 				self.timer1Passed = False
 				noFlowRes = float(self.config['leakageTest'].get('noFlowPeriod',90)) - float(self.config['leakageTest'].get('minimumMeasuringPeriod',30))
-				self.timer1 = threading.Timer(noFlowRes,stopTimer1)	#Start no-flow timer.
+				if(noFlowRes<=0):
+					self.timer1Passed =True
+				else:
+					self.timer1 = threading.Timer(noFlowRes,stopTimer1)	#Start no-flow timer.
+					self.timer1.start()
+				logging.info("NoFlow remainder set to "+ str(noFlowRes))
 				self.subStateStep += 1
 				self.updateIDref = self.rigComms.getStatus()['id']
 				logging.info('Continue to step 10')
