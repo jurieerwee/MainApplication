@@ -40,10 +40,12 @@ class Control(object):
 	rigCommands['closeReleaseVavle'] = {'type':'manual','instr':'closeReleaseVavle'}
 	rigCommands['error'] = {'type':'stateCMD','instr':'error'}
 
-	def __init__(self, _rigComms, _uiComms):
+	def __init__(self, _rigComms, _uiComms, _config):
 		'''
 		Constructor
 		'''
+		self.config = _config
+		
 		self.state = 'IDLE'
 		self.mode = 'SINGLE_STATE'
 		self.rigComms = _rigComms
@@ -56,7 +58,8 @@ class Control(object):
 		self.toBeNextState = None
 		
 		#leakageTest
-		self.pressureSequence = [4,3.5,3,2.5,2]
+		#self.pressureSequence = [4,3.5,3,2.5,2]
+		self.pressureSequence = json.loads(_config['leakageTest']['pressureSequence'])
 		self.pressSeqCounter =0
 		self.timer1Passed = False #Flag for use with timer1.
 		self.results = [] #list of dictionaries for test results
@@ -186,7 +189,7 @@ class Control(object):
 			self.lastID = self.rigComms.sendCmd(Control.rigCommands['startPump'])
 			self.subStateStep +=1
 			self.timer1Passed = False
-			self.timer1 = threading.Timer(10,stopTimer1) #TODO: make settling time configurable
+			self.timer1 = threading.Timer(float(self.config['leakageTest'].get('pumpStartPeriod',10)),stopTimer1) #TODO: make settling time configurable
 			self.timer1.start()
 			logging.info('Step1 of leakageTest done')
 			
@@ -248,7 +251,7 @@ class Control(object):
 					self.subStateStep += 1
 					self.updateIDref = self.rigComms.getStatus()['id']
 					self.timer1Passed = False
-					self.timer1 = threading.Timer(60,stopTimer1) #TODO: make settling time configurable
+					self.timer1 = threading.Timer(self.config['leakageTest'].get('pressureSettlingPeriod',60),stopTimer1) #TODO: make settling time configurable
 					self.timer1.start()
 					logging.info('Continue to step 7')
 				else:
@@ -256,7 +259,7 @@ class Control(object):
 					self.changeState('IDLE')
 		
 		def step7():
-			'''Wait for settling period to pass.  Consider that rig in correct state. Reset the rig counters.'''
+			'''Wait for settling period to pass.  Consider that rig in correct state. Reset the rig counters and start minimum measuring period.'''
 			if(self.timer1Passed == True):
 				if(self.rigComms.getStatus()['status']['state']=='PRESSURE_HOLD'):
 					logging.info('Settle period over.')
@@ -264,7 +267,7 @@ class Control(object):
 					self.subStateStep += 1
 					self.updateIDref = self.rigComms.getStatus()['id']
 					self.timer1Passed = False
-					self.timer1 = threading.Timer(30,stopTimer1)
+					self.timer1 = threading.Timer(float(self.config['leakageTest'].get('minimumMeasuringPeriod',30)),stopTimer1)	#Start minimum measuring time
 					self.timer1.start()
 					self.minMeasureTimePassed = False
 				else:
@@ -290,7 +293,8 @@ class Control(object):
 			'''Continue to next step once minimum measuring time has passed.  Also start the no-flow timeout'''
 			if(self.timer1Passed == True): #Minimum measuring time passed.
 				self.timer1Passed = False
-				self.timer1 = threading.Timer(151,stopTimer1)	#Start no-flow timer
+				noFlowRes = float(self.config['leakageTest'].get('noFlowPeriod',90)) - float(self.config['leakageTest'].get('minimumMeasuringPeriod',30))
+				self.timer1 = threading.Timer(noFlowRes,stopTimer1)	#Start no-flow timer.
 				self.subStateStep += 1
 				self.updateIDref = self.rigComms.getStatus()['id']
 				logging.info('Continue to step 10')

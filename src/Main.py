@@ -14,36 +14,43 @@ import socket
 import time
 import sys
 import logging
+import configparser
 
-uiIP = 'localhost'
-if(len(sys.argv)>1):
-	uiIP = sys.argv[1]
-	
-rigIP = 'localhost'
-if(len(sys.argv)>2):
-	rigIP = sys.argv[2]
+
 	
 def initLogging():
 	logging.basicConfig(filename='mainAppLog.log',filemode = 'w',level=logging.INFO, format='[%(asctime)s] %(levelname)s: %(message)s')
 
+def initConfig():
+	config = configparser.ConfigParser()
+	config.read(['ipSettings.conf','stateSettings.conf'])
+	return config
+
 initLogging()
+config = initConfig()
+
+'''Determine ip addresses and ports'''
+if(len(sys.argv)>1):
+	uiIP = sys.argv[1]
+else:
+	uiIP = config['ui'].get('ipaddress','localhost')
+uiPort = int(config['ui'].get('port','5001'))
+
+if(len(sys.argv)>2):
+	rigIP = sys.argv[2]
+else:
+	rigIP = config['rig'].get('ipaddress','localhost')
+rigPort = int(config['rig'].get('port','5000'))
+
 
 try:
-	rigComms = RigComms(rigIP,5000)
+	rigComms = RigComms(rigIP,rigPort)
 except (socket.error):
 	print('rigComms init failed')
 	exit()
 	
-# class UIComms(object):
-# 	def sendWarning(self,msg):
-# 		print (msg)
-# 		
-# 	def sendError(self,msg):
-# 		print(msg)
-# 	
-# uiComms = UIComms()
 try:	
-	uiComms = UIComms(uiIP,5001)
+	uiComms = UIComms(uiIP,uiPort)
 except (socket.error):
 	logging.error('uiComms init failed')
 	sys.exit()
@@ -76,7 +83,7 @@ if(i==10):
 
 print(rigComms.getStatus())
 
-ctrl = Control.Control(rigComms,uiComms)
+ctrl = Control.Control(rigComms,uiComms,config)
 
 try:
 	ctrl.controlLoop()
