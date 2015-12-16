@@ -514,7 +514,7 @@ class Control(object):
 					self.stateFunctions[self.state]()
 				except KeyError:
 					self.changeState('ERROR')
-					self.rigComms(Control.rigCommands['error'])	
+					self.rigComms.sendCmd(Control.rigCommands['error'])	
 					
 				
 				cmd = self.uiComms.getCmd()
