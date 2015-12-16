@@ -324,6 +324,8 @@ class Control(object):
 			elif(self.timer1Passed == True): #No flow
 				result =  {'setPressure':self.pressureSequence[self.pressSeqCounter-1],'avePressure':status['setData']['pressure'],'aveFlow': 0}
 				self.results.append(result)
+				self.uiComms.sendWarning({'id':9,'msg':"No flow at this pressure.  Ending test prematurely."})
+				logging.warning("Test ended due to no-flow")
 				self.updateIDref = self.rigComms.getStatus()['id']
 				self.subStateStep +=1
 				logging.info('Continue to step 11')
