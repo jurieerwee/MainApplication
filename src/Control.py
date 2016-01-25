@@ -384,6 +384,21 @@ class Control(object):
 				else:
 					self.subStateStep =3
 	
+	def pumpLoop(self):
+		if(self.subStateStep ==1):
+			logging.info("Entered pumpLoop")
+			self.lastID = self.rigComms.sendCmd(Control.rigCommands['startPump'])
+			self.updateIDref = self.rigComms.getStatus()['id']
+			self.subStateStep =2
+		if(self.subStateStep == 2):
+			if(self.rigComms.getStatus()['status']['state']== 'PUMPING'):
+				self.subStateStep =3
+			elif(self.rigComms.getStatus()['id'] > self.updateIDref+10):
+				logging.error("Rig not entering PUMPING state")
+				self.changeState('ERROR')
+			
+
+	
 	'''Message interpret methods'''
 	def enable_auto_continue(self):
 		self.mode = 'AUTO_CONTINUE'
