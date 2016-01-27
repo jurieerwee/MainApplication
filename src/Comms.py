@@ -132,6 +132,7 @@ class RigComms(Comms):
 							self.updateID +=1
 							if(hasattr(self,'UI')):	 #If attribute UI has been added by activateRigToUI(), forward the rig status
 								self.UI.pushTransMsg(msgString + '\n')
+							logging.debug('UpdateReceived:'+str(self.updateID-1))
 						elif(key == 'reply'):
 							self.replies[msg['reply']['id']] = msg['reply']
 						else:
