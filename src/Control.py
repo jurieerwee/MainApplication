@@ -508,7 +508,7 @@ class Control(object):
 		self.uiComms.sendAppStatus(update)
 	
 	def controlLoop(self):
-		self.stateFunctions = {'PRIME':self.primeLoop, 'IDLE':self.idleLoop, 'LEAKAGE_TEST':self.leakTestLoop, 'ERROR':self.errorLoop, 'WAIT_ISOLATE':self.waitIsolateLoop}
+		self.stateFunctions = {'PRIME':self.primeLoop, 'IDLE':self.idleLoop, 'LEAKAGE_TEST':self.leakTestLoop, 'ERROR':self.errorLoop, 'WAIT_ISOLATE':self.waitIsolateLoop, 'PUMP':self.pumpLoop}
 		logging.info('Started controlLoop')
 		
 		try:
