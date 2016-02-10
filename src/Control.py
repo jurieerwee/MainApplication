@@ -9,6 +9,7 @@ import threading
 import logging
 import json
 from Comms import UIComms
+from time import gmtime, strftime
 
 class Control(object):
 	'''
@@ -63,6 +64,7 @@ class Control(object):
 		self.pressSeqCounter =0
 		self.timer1Passed = False #Flag for use with timer1.
 		self.results = [] #list of dictionaries for test results
+		self.testCount = 0 #Counts the number of tests performed.
 		
 		#Prompting
 		self.promptID = -1
@@ -191,6 +193,7 @@ class Control(object):
 			self.timer1Passed = False
 			self.timer1 = threading.Timer(float(self.config['leakageTest'].get('pumpStartPeriod',10)),stopTimer1) #TODO: make settling time configurable
 			self.timer1.start()
+			self.results = []
 			logging.info('Step1 of leakageTest done')
 			
 		def step2():
@@ -346,11 +349,13 @@ class Control(object):
 					self.abort()
 				elif(reply[1]['code'] == 1):
 					self.updateIDref = self.rigComms.getStatus()['id']
-					self.nextState()
-					self.subStateStep =1
-					with open('testResults.txt','wt') as resultsFile:
+					
+					with open('testResults'+str(self.testCount) +   '.txt','wt') as resultsFile:
+						self.testCount +=1
 						for datapoint in self.results:
 							json.dump(datapoint,resultsFile,indent=4)
+					self.nextState()
+					self.subStateStep =1
 				else:
 					self.uiComms.sendWarning({'id':8,'msg': 'Final idle command unsuccessful. Returning to IDLE'})
 					self.changeState('IDLE')
@@ -371,6 +376,10 @@ class Control(object):
 		
 		stepsDict[self.subStateStep]()
 
+	def dataUploadLoop(self):
+		#Start process to upload data to web.  For now, write to file.
+
+	
 	def idleLoop(self):
 		if(self.subStateStep == 1):
 			logging.info( 'Entered idle in main.')
