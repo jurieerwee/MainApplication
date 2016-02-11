@@ -376,7 +376,7 @@ class Control(object):
 		
 		stepsDict[self.subStateStep]()
 
-	def dataUploadLoop(self):
+	#def dataUploadLoop(self):
 		#Start process to upload data to web.  For now, write to file.
 
 	
