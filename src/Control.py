@@ -194,6 +194,7 @@ class Control(object):
 			self.timer1 = threading.Timer(float(self.config['leakageTest'].get('pumpStartPeriod',10)),stopTimer1) #TODO: make settling time configurable
 			self.timer1.start()
 			self.results = []
+			self.pressSeqCounter = 0
 			logging.info('Step1 of leakageTest done')
 			
 		def step2():
