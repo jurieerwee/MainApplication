@@ -224,12 +224,24 @@ class Control(object):
 					
 		def step4():
 			'''Set the new pressure command.  This is also the entry point for the loop back next pressure is set'''
-			setPresCMD = Control.rigCommands['setPressure']
-			setPresCMD.update({'pressure':self.pressureSequence[self.pressSeqCounter]})
-			self.lastID = self.rigComms.sendCmd(setPresCMD)
+			if(self.pressureSequence[self.pressSeqCounter] != -10):
+				setPresCMD = Control.rigCommands['setPressure']
+				setPresCMD.update({'pressure':self.pressureSequence[self.pressSeqCounter]})
+				self.lastID = self.rigComms.sendCmd(setPresCMD)
+				self.subStateStep +=1
+				logging.info('Continue to step 5')
+				
+			else:
+				logging.info('Max pressure step.')
+				setSpeedCMD = Control.rigCommands['setPumpPerc']
+				setSpeedCMD.update({'percentage':0.9999})
+				self.lastID = self.rigComms.sendCmd(setSpeedCMD)
+				self.subStateStep +=2
+				logging.info('Continue to step 6')
+			
 			self.pressSeqCounter +=1
-			self.subStateStep +=1
-			logging.info('Continue to step 5')
+			
+			
 		
 		def step5():
 			'''Wait for reply on setPressure command. Send newPressure command.'''
@@ -268,7 +280,7 @@ class Control(object):
 		def step7():
 			'''Wait for settling period to pass.  Consider that rig in correct state. Reset the rig counters and start minimum measuring period.'''
 			if(self.timer1Passed == True):
-				if(self.rigComms.getStatus()['status']['state']=='PRESSURE_HOLD'):
+				if((self.rigComms.getStatus()['status']['state']=='PRESSURE_HOLD') or (self.pressureSequence[self.pressSeqCounter-1]==-10 and self.rigComms.getStatus()['status']['state']=='PUMPING')):
 					logging.info('Settle period over.')
 					self.lastID = self.rigComms.sendCmd(Control.rigCommands['resetCounters'])
 					self.subStateStep += 1
@@ -356,8 +368,11 @@ class Control(object):
 					
 					with open('testResults'+str(self.testCount) +   '.txt','wt') as resultsFile:
 						self.testCount +=1
+						resultsFile.write('[')
 						for datapoint in self.results:
 							json.dump(datapoint,resultsFile,indent=4)
+							resultsFile.write(',')
+						resultsFile.write(']')
 					self.nextState()
 					self.subStateStep =1
 				else:
