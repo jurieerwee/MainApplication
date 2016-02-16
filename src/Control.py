@@ -91,8 +91,11 @@ class Control(object):
 			self.toBeNextState = nextState_
 			self.changeState('IDLE')
 		elif(self.mode == 'AUTO_CONTINUE'):
-			self.changeState(nextState_)
-
+			#self.changeState(nextState_)
+			if(self.state == 'LEAKAGE_TEST' and self.testCount <5):
+				self.changeState('LEAKAGE_TEST')
+			else:
+				self.changeState('IDLE')
 	def primeLoop(self):
 		
 		def step1():

@@ -19,7 +19,7 @@ import configparser
 
 	
 def initLogging():
-	logging.basicConfig(filename='mainAppLog.log',filemode = 'w',level=logging.DEBUG, format='[%(asctime)s] %(levelname)s: %(message)s')
+	logging.basicConfig(filename='mainAppLog.log',filemode = 'w',level=logging.INFO, format='[%(asctime)s] %(levelname)s: %(message)s')
 
 def initConfig():
 	config = configparser.ConfigParser()
