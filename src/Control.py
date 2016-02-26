@@ -425,7 +425,18 @@ class Control(object):
 				logging.error("Rig not entering PUMPING state")
 				self.changeState('ERROR')
 			
-
+	def overrideLoop(self):
+		if(self.subStateStep ==1):
+			logging.info("Entered Override loop")
+			self.lastID = self.rigComms.sendCmd(Control.rigCommands['override'])
+			self.updateIDref = self.rigComms.getStatus()['id']
+			self.subStateStep =2
+		if(self.subStateStep == 2):
+			if(self.rigComms.getStatus()['status']['state']== 'OVERRIDE'):
+				self.subStateStep =3
+			elif(self.rigComms.getStatus()['id'] > self.updateIDref+10):
+				logging.error("Rig not entering OVERRIDE state")
+				self.changeState('IDLE')
 	
 	'''Message interpret methods'''
 	def enable_auto_continue(self):
@@ -468,7 +479,6 @@ class Control(object):
 		self.changeState('LEAKAGE_TEST')
 		return True
 	def startOverrive(self):
-		return False #Not yet implemented.
 		if(self.state != 'IDLE'):
 			return False
 		self.changeState('OVERRIDE')
@@ -536,7 +546,7 @@ class Control(object):
 		self.uiComms.sendAppStatus(update)
 	
 	def controlLoop(self):
-		self.stateFunctions = {'PRIME':self.primeLoop, 'IDLE':self.idleLoop, 'LEAKAGE_TEST':self.leakTestLoop, 'ERROR':self.errorLoop, 'WAIT_ISOLATE':self.waitIsolateLoop, 'PUMP':self.pumpLoop}
+		self.stateFunctions = {'PRIME':self.primeLoop, 'IDLE':self.idleLoop, 'LEAKAGE_TEST':self.leakTestLoop, 'ERROR':self.errorLoop, 'WAIT_ISOLATE':self.waitIsolateLoop, 'PUMP':self.pumpLoop,'OVERRIDE':self.overrideLoop}
 		logging.info('Started controlLoop')
 		
 		try:
