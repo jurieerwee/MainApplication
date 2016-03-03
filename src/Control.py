@@ -57,6 +57,7 @@ class Control(object):
 		self.lastID = 0
 		self.resetErrorID = -1 #For the reset of an error
 		self.toBeNextState = None
+		self.isolated = False #Flag indicating whether isolation test has been passed.
 		
 		#leakageTest
 		#self.pressureSequence = [4,3.5,3,2.5,2]
@@ -92,7 +93,7 @@ class Control(object):
 			self.changeState('IDLE')
 		elif(self.mode == 'AUTO_CONTINUE'):
 			#self.changeState(nextState_)
-			if(self.state == 'LEAKAGE_TEST' and self.testCount <5):
+			if(self.state == 'LEAKAGE_TEST' and self.testCount <10):
 				self.changeState('LEAKAGE_TEST')
 			else:
 				self.changeState('IDLE')
@@ -184,6 +185,87 @@ class Control(object):
 			step1()
 		elif(self.subStateStep==2):
 			step2()
+	
+	def isolationTestLoop(self):
+		def stopTimer1():
+			''' Function used by timer time1.'''
+			self.timer1Passed = True
+		
+		def testFailed():
+			self.isolated = False
+			self.changeState('IDLE') #TODO: This should actually be waitIsolate to allow for isolation to be checked again.  Note, rig must be put in IDLE state then.
+		
+		def startReleasePres():
+			''' Send forceFill command. Continue to next step'''
+			self.lastID = self.rigComms.sendCmd(Control.rigCommands['forceFill'])
+			self.subStateStep +=1
+			logging.info('Step1 of isolatetionTest done')
+			
+		def confirmReleasePresStart():
+			''' Wait for reply on forceFill command. Continue to next step'''
+			reply = self.rigComms.getCmdReply(self.lastID)
+			if(reply[0]==True):
+				if(reply[1]['success'] == False):
+					self.uiComms.sendError({'id':2,'msg': 'JSON error'})
+					self.abort()
+				elif(reply[1]['code'] == 1):
+					self.subStateStep += 1
+					self.updateIDref = self.rigComms.getStatus()['id']
+					self.timer1Passed = False
+					self.timer1 = threading.Timer(float(self.config['isolationTest'].get('pressureReleasePeriod',10)),stopTimer1)
+					self.timer1.start()
+					logging.info('Continue to step 3')
+				else:
+					self.uiComms.sendWarning({'id':3,'msg': 'Start forceFill command unsuccessful. Returning to IDLE'})
+					self.changeState('IDLE')
+					
+		def considerPressureDrop():
+			'''Wait for timer to trigger or pressure to drop.  Test fails or continue'''
+			if(self.rigComms.getStatus()['status']['pressurised'] == False):
+				logging.info('Pressure dropped sufficiently. Continue isolation test.  Sending resetCounters cmd')
+				self.lastID = self.rigComms.sendCmd(Control.rigCommands['resetCounters'])
+				self.subStateStep +=1
+			elif(self.timer1Passed and self.rigComms.getStatus()['id']>self.updateIDref):
+				logging.info('Pressure dropped insufficiently. Stop test')
+				testFailed()
+				
+		
+		def confirmClearCounters():
+			''' Confirm clear counters command and start countdown'''
+			reply = self.rigComms.getCmdReply(self.lastID)
+			if(reply[0]==True):
+				if(reply[1]['success'] == False):
+					self.uiComms.sendError({'id':2,'msg': 'JSON error'})
+					self.abort()
+				elif(reply[1]['code'] == 1):
+					self.subStateStep += 1
+					self.updateIDref = self.rigComms.getStatus()['id']
+					self.timer1Passed = False
+					self.timer1 = threading.Timer(float(self.config['isolationTest'].get('noFlowPeriod',90)),stopTimer1)
+					self.timer1.start()
+					logging.info('Counters cleared.  Started timer.')
+				else:
+					self.uiComms.sendWarning({'id':3,'msg': 'Counter reset command unsuccessful. Returning to IDLE'})
+					self.changeState('IDLE')
+					
+		def checkVolume():
+			if(self.rigComms.getStatus['setData']['flowCounter'] > (self.config['isolationTest'].get('maxVolume',2))):
+				logging.info('Volume threshold exceeded.  Isolation test failed')
+				testFailed()
+			elif (self.timer1Passed==True):
+				logging.info('Volume threhold not exceeded in noFlowPeroid. Isolation test passed')
+				self.isolated = True
+				self.nextState()
+				
+		stepsDict = {}
+		stepsDict[1] = startReleasePres
+		stepsDict[2] = confirmReleasePresStart
+		stepsDict[3] = considerPressureDrop
+		stepsDict[4] = confirmClearCounters
+		stepsDict[5] = checkVolume
+		
+		stepsDict[self.subStateStep]()
+
 	
 	def leakTestLoop(self):
 		def stopTimer1():
@@ -488,7 +570,10 @@ class Control(object):
 		self.changeState('WAIT_ISOLATE')
 		return True
 	def startIsolationTest(self):
-		return False #not yet implemented
+		if(self.state != 'IDLE' and self.state != 'WAIT_ISOLATE'):
+			return False
+		self.changeState('ISOLATION_TEST')
+		return True
 	def startDataUpload(self):
 		return False #not yet implemented
 	def startError(self):
@@ -546,7 +631,7 @@ class Control(object):
 		self.uiComms.sendAppStatus(update)
 	
 	def controlLoop(self):
-		self.stateFunctions = {'PRIME':self.primeLoop, 'IDLE':self.idleLoop, 'LEAKAGE_TEST':self.leakTestLoop, 'ERROR':self.errorLoop, 'WAIT_ISOLATE':self.waitIsolateLoop, 'PUMP':self.pumpLoop,'OVERRIDE':self.overrideLoop}
+		self.stateFunctions = {'PRIME':self.primeLoop, 'IDLE':self.idleLoop, 'LEAKAGE_TEST':self.leakTestLoop,'ISOLATION_TEST':self.isolationTestLoop, 'ERROR':self.errorLoop, 'WAIT_ISOLATE':self.waitIsolateLoop, 'PUMP':self.pumpLoop,'OVERRIDE':self.overrideLoop}
 		logging.info('Started controlLoop')
 		
 		try:
