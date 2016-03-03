@@ -79,8 +79,7 @@ class Control(object):
 		
 	def nextState(self):
 		logging.info('Next state')
-		#stateSequence = ['PRIME','WAIT_ISOLATE','ISOLATE_TEST','LEAKAGE_TEST','DATA_UPLOAD']
-		stateSequence = ['PRIME','WAIT_ISOLATE','LEAKAGE_TEST','DATA_UPLOAD']
+		stateSequence = ['PRIME','WAIT_ISOLATE','ISOLATION_TEST','LEAKAGE_TEST','DATA_UPLOAD']
 		
 		if(self.state in stateSequence):
 			nextState_ = stateSequence[stateSequence.index(self.state)+1]
