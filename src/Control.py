@@ -602,7 +602,7 @@ class Control(object):
 		cmdDict = {"modeCMD":{"auto_continue":self.enable_auto_continue, "stepthrough":self.enable_stepthrough,"singlestate":self.enable_singlestate}\
 				,"stateCMD":{"prime":self.startPrime,"fill":self.startFill,"forceFill":self.startForceFill,"idle":self.startIdle,"pump":self.startPump,"setPressure":self.startSetPressure\
 							,"error":self.startError,"override":self.startOverrive,"leakageTest":self.startLeakageTest,"continue":self.continueCmd, "preempt":self.preemptCmd  \
-								,"clearError":self.clearError, "waitIsolate":self.startWaitIsolate}
+								,"clearError":self.clearError, "waitIsolate":self.startWaitIsolate,"isolationTest":self.startIsolationTest}
 				}
 		reply = {}
 		
