@@ -192,6 +192,7 @@ class Control(object):
 		
 		def testFailed():
 			self.isolated = False
+			self.uiComms.sendWarning({'id':7,'msg': 'Isolation test failed.'})
 			self.changeState('IDLE') #TODO: This should actually be waitIsolate to allow for isolation to be checked again.  Note, rig must be put in IDLE state then.
 		
 		def startReleasePres():
@@ -213,9 +214,9 @@ class Control(object):
 					self.timer1Passed = False
 					self.timer1 = threading.Timer(float(self.config['isolationTest'].get('pressureReleasePeriod',10)),stopTimer1)
 					self.timer1.start()
-					logging.info('Continue to step 3')
+					logging.info('ForceFill started. Starting timer for pressure release')
 				else:
-					self.uiComms.sendWarning({'id':3,'msg': 'Start forceFill command unsuccessful. Returning to IDLE'})
+					self.uiComms.sendWarning({'id':6,'msg': 'Start forceFill command unsuccessful. Returning to IDLE'})
 					self.changeState('IDLE')
 					
 		def considerPressureDrop():
@@ -223,6 +224,7 @@ class Control(object):
 			if(self.rigComms.getStatus()['status']['pressurised'] == False):
 				logging.info('Pressure dropped sufficiently. Continue isolation test.  Sending resetCounters cmd')
 				self.lastID = self.rigComms.sendCmd(Control.rigCommands['resetCounters'])
+				self.timer1.cancel()
 				self.subStateStep +=1
 			elif(self.timer1Passed and self.rigComms.getStatus()['id']>self.updateIDref):
 				logging.info('Pressure dropped insufficiently. Stop test')
@@ -248,8 +250,9 @@ class Control(object):
 					self.changeState('IDLE')
 					
 		def checkVolume():
-			if(self.rigComms.getStatus['setData']['flowCounter'] > (self.config['isolationTest'].get('maxVolume',2))):
+			if(self.rigComms.getStatus()['setData']['flowCounter'] > int((self.config['isolationTest'].get('maxVolume',2)))):
 				logging.info('Volume threshold exceeded.  Isolation test failed')
+				self.timer1.cancel()
 				testFailed()
 			elif (self.timer1Passed==True):
 				logging.info('Volume threhold not exceeded in noFlowPeroid. Isolation test passed')
@@ -626,7 +629,7 @@ class Control(object):
 	def sendUpdate(self):
 		self.updateTimer = threading.Timer(0.5,self.sendUpdate)
 		self.updateTimer.start()
-		update = {'mode':self.mode,'state':self.state,'step':self.subStateStep, 'results': self.results}
+		update = {'mode':self.mode,'state':self.state,'step':self.subStateStep,'isolated':self.isolated, 'results': self.results}
 		self.uiComms.sendAppStatus(update)
 	
 	def controlLoop(self):
