@@ -538,11 +538,13 @@ class Control(object):
 		self.changeState('PRIME')
 		return True
 	def startFill(self):
+		return False
 		if(self.state != 'IDLE'):
 			return False
 		self.changeState('FILL')
 		return True
 	def startForceFill(self):
+		return False
 		if(self.state != 'IDLE'):
 			return False
 		self.changeState('FORCEFILL')

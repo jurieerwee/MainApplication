@@ -13,6 +13,7 @@ import logging
 
 import json
 from io import StringIO
+import datetime
 
 class Comms(object):
 	'''
@@ -65,9 +66,11 @@ class Comms(object):
 	def receive(self):
 		#This method waits for 1 second to receive a msg and adds it to the queue if there is.  It is the caller's responsibility to implement a loop.  This allows for expansion of the method.
 		ready = select.select([self.fdr],[],[self.fdr],1)
+		print(str(datetime.datetime.now()))
 		if(len(ready[0])!=0):
 			try:
 				data = self.fdr.readline()#.strip()
+				print(data)
 				self.recvQ.put(data.strip('\x00'))
 			except socket.error:
 				self.recvQ.put(None)
@@ -114,34 +117,41 @@ class RigComms(Comms):
 		self.recvLock = threading.Lock()
 		
 	def receive(self):
-		while(self.terminate == False):
-			self.recvLock.acquire()
-			received = Comms.receive(self)
-			if(received==True):
-				try:
-					msgString = self.recvQ.get()
-					if(not msgString):
-						self.terminateComms()	#Socket closed
-					else:
-						msg = json.loads(msgString)#,encoding='utf-8')
-						#print("success msg: ", msgString)
-						key = next(iter(msg.keys()))
-						if(key == 'update'):
-							self.status = msg['update']
-							self.status.update({'id':self.updateID}) 	#Also add an ID to the update
-							self.updateID +=1
-							if(hasattr(self,'UI')):	 #If attribute UI has been added by activateRigToUI(), forward the rig status
-								self.UI.pushTransMsg(msgString + '\n')
-							logging.debug('UpdateReceived:'+str(self.updateID-1))
-						elif(key == 'reply'):
-							self.replies[msg['reply']['id']] = msg['reply']
+		with open('network_rigRecv.txt','w') as fp:
+			while(self.terminate == False):
+			
+				#self.recvLock.acquire()
+				received = Comms.receive(self)
+				if(received==True):
+					fp.write('\nStart:'+str(datetime.datetime.now()))
+					#fp.write('\nRecvQ: '+str(self.recvQ.qsize()) + ', TransQ: ' + str(self.transQ.qsize())) 
+					fp.flush()
+					try:
+						msgString = self.recvQ.get()
+						if(not msgString):
+							self.terminateComms()	#Socket closed
 						else:
-							#Log invalid key
-							logging.warning('invalid key:%s' % key)
-				except ValueError as e:
-					#Log invalid msg
-					print("Invalid msg: %s" % repr(msgString))
-			self.recvLock.release()
+							msg = json.loads(msgString)#,encoding='utf-8')
+							#print("success msg: ", msgString)
+							key = next(iter(msg.keys()))
+							if(key == 'update'):
+								self.status = msg['update']
+								self.status.update({'id':self.updateID}) 	#Also add an ID to the update
+								self.updateID +=1
+								if(hasattr(self,'UI')):	 #If attribute UI has been added by activateRigToUI(), forward the rig status
+									self.UI.pushTransMsg(msgString + '\n')
+								logging.debug('UpdateReceived:'+str(self.updateID-1))
+							elif(key == 'reply'):
+								self.replies[msg['reply']['id']] = msg['reply']
+							else:
+								#Log invalid key
+								logging.warning('invalid key:%s' % key)
+					except ValueError as e:
+						#Log invalid msg
+						print("Invalid msg: %s" % repr(msgString))
+					
+					fp.write('\nStop :'+str(datetime.datetime.now()) +';'+ key )
+				#self.recvLock.release()
 		if(not self.fdr.closed):
 			self.fdr.close()
 			
@@ -198,7 +208,7 @@ class UIComms(Comms):
 		
 	def receive(self):
 		while(self.terminate == False):
-			self.recvLock.acquire()
+			#self.recvLock.acquire()
 			received = Comms.receive(self)
 			if(received == True):
 				try:
@@ -225,7 +235,7 @@ class UIComms(Comms):
 				except ValueError as e:
 					#Log invalid msg
 					logging.warning("Invalid msg")
-			self.recvLock.release()
+			#self.recvLock.release()
 		if(not self.fdr.closed):
 			self.fdr.close()
 		
