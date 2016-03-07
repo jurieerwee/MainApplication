@@ -70,11 +70,11 @@ class Comms(object):
 	def receive(self):
 		#This method waits for 1 second to receive a msg and adds it to the queue if there is.  It is the caller's responsibility to implement a loop.  This allows for expansion of the method.
 		ready = select.select([self.fdr],[],[self.fdr],2)
-		print(self.ipAddress + 'sel'+ str(datetime.datetime.now()))
+		#print(self.ipAddress + 'sel'+ str(datetime.datetime.now()))
 		if(len(ready[0])!=0):
 			try:
 				data = self.fdr.readline()#.strip()
-				print(self.ipAddress + 'rd'+str(datetime.datetime.now()))
+				#print(self.ipAddress + 'rd'+str(datetime.datetime.now()))
 				self.recvQ.put(data.strip('\x00'))
 			except socket.error:
 				self.recvQ.put(None)
