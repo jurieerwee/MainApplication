@@ -640,8 +640,15 @@ class Control(object):
 		
 		try:
 			self.sendUpdate()
+			self.lastSentUpdate = 0
 			
 			while(True):
+				self.uiComms.interpret()
+				self.rigComms.interpret()
+				if(self.lastSentUpdate != self.rigComms.getStatus()['id']):
+					self.uiComms.sendRigUpdate(self.rigComms.getStatus())
+					print(self.rigComms.getStatus())
+				
 				if((self.resetErrorID +4 < self.rigComms.getStatus()['id']) and self.rigComms.getStatus()['status']['state']=='ERROR' and self.state != 'ERROR'):
 					self.changeState('ERROR')
 					self.uiComms.sendError({'id':9,'msg':"Rig in error mode"})

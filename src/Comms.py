@@ -8,6 +8,7 @@ import queue
 from collections import deque
 import socket
 import select
+from select import poll
 import threading
 import logging
 
@@ -37,6 +38,9 @@ class Comms(object):
 		
 		self.fdw = self.socket.makefile('w')
 		self.fdr = self.socket.makefile('r')
+		
+		#self.rdPoll = poll()
+		#self.rdPoll.register(self.fdr,select.POLLIN+select.POLLERR)
 
 		
 		self.terminate = False
@@ -65,18 +69,22 @@ class Comms(object):
 	
 	def receive(self):
 		#This method waits for 1 second to receive a msg and adds it to the queue if there is.  It is the caller's responsibility to implement a loop.  This allows for expansion of the method.
-		ready = select.select([self.fdr],[],[self.fdr],1)
-		print(str(datetime.datetime.now()))
+		ready = select.select([self.fdr],[],[self.fdr],2)
+		print(self.ipAddress + 'sel'+ str(datetime.datetime.now()))
 		if(len(ready[0])!=0):
 			try:
 				data = self.fdr.readline()#.strip()
-				print(data)
+				print(self.ipAddress + 'rd'+str(datetime.datetime.now()))
 				self.recvQ.put(data.strip('\x00'))
 			except socket.error:
 				self.recvQ.put(None)
+				return False
 			return True
-		else:
+		elif(len(ready[2])!=0):
+			self.recvQ.put(None)
 			return False
+		else:
+			return True
 			
 	def pushTransMsg(self, msg):
 		#This method adds a msg to the transmit Q and notifies the thread.
@@ -101,8 +109,6 @@ class RigComms(Comms):
 	'''
 	classdocs
 	'''
-
-
 	def __init__(self, tcpIP, tcpPort):
 		'''
 		Constructor
@@ -117,43 +123,39 @@ class RigComms(Comms):
 		self.recvLock = threading.Lock()
 		
 	def receive(self):
-		with open('network_rigRecv.txt','w') as fp:
-			while(self.terminate == False):
-			
-				#self.recvLock.acquire()
-				received = Comms.receive(self)
-				if(received==True):
-					fp.write('\nStart:'+str(datetime.datetime.now()))
-					#fp.write('\nRecvQ: '+str(self.recvQ.qsize()) + ', TransQ: ' + str(self.transQ.qsize())) 
-					fp.flush()
-					try:
-						msgString = self.recvQ.get()
-						if(not msgString):
-							self.terminateComms()	#Socket closed
-						else:
-							msg = json.loads(msgString)#,encoding='utf-8')
-							#print("success msg: ", msgString)
-							key = next(iter(msg.keys()))
-							if(key == 'update'):
-								self.status = msg['update']
-								self.status.update({'id':self.updateID}) 	#Also add an ID to the update
-								self.updateID +=1
-								if(hasattr(self,'UI')):	 #If attribute UI has been added by activateRigToUI(), forward the rig status
-									self.UI.pushTransMsg(msgString + '\n')
-								logging.debug('UpdateReceived:'+str(self.updateID-1))
-							elif(key == 'reply'):
-								self.replies[msg['reply']['id']] = msg['reply']
-							else:
-								#Log invalid key
-								logging.warning('invalid key:%s' % key)
-					except ValueError as e:
-						#Log invalid msg
-						print("Invalid msg: %s" % repr(msgString))
-					
-					fp.write('\nStop :'+str(datetime.datetime.now()) +';'+ key )
-				#self.recvLock.release()
+		while(self.terminate == False):
+			received = Comms.receive(self)
+			if(received==False):
+				self.terminateComms()
+				
 		if(not self.fdr.closed):
 			self.fdr.close()
+			
+	def interpret(self):
+		try:
+			while(self.recvQ.empty()==False):
+				msgString = self.recvQ.get()
+				if(not msgString):
+					self.terminateComms()	#Socket closed
+				else:
+					msg = json.loads(msgString)#,encoding='utf-8')
+					#print("success msg: ", msgString)
+					key = next(iter(msg.keys()))
+					if(key == 'update'):
+						self.status = msg['update']
+						self.status.update({'id':self.updateID}) 	#Also add an ID to the update
+						self.updateID +=1
+						logging.debug('UpdateReceived:'+str(self.updateID-1))
+					elif(key == 'reply'):
+						self.replies[msg['reply']['id']] = msg['reply']
+					else:
+						#Log invalid key
+						logging.warning('invalid key:%s' % key)
+		except ValueError as e:
+			#Log invalid msg
+			print("Invalid msg: %s" % repr(msgString))
+
+			
 			
 	def popRecvMsg(self):
 		if(self.recvLock.acquire(blocking = False)==True):
@@ -208,36 +210,39 @@ class UIComms(Comms):
 		
 	def receive(self):
 		while(self.terminate == False):
-			#self.recvLock.acquire()
 			received = Comms.receive(self)
-			if(received == True):
-				try:
-					msgString = self.recvQ.get()
-					if(not msgString):
-						self.terminateComms()
-					else:
-						msg = json.loads(msgString)
-						key = next(iter(msg.keys()))
-						if(key == 'updateUI'):
-							self.status = msg['updateUI']
-							#TODO parse status to UI
-						elif(key == 'cmd'):
-							self.commandsQ.put_nowait(msg['cmd'])
-						elif(key == 'msg'):
-							if(hasattr(self,'rig')):	 #If attribute rig has been added by activateUItoRig(), forward msg to rig
-								self.rig.pushTransMsg(msgString + '\n')
-								logging.info('Msg forwarded')
-						elif(key == 'promptReply'):
-							self.promptReplies.update({msg['promptReply']['id']:msg['promptReply']})
-						else:
-							#Log invalid key
-							logging.warning('invalid key: %s' %key)
-				except ValueError as e:
-					#Log invalid msg
-					logging.warning("Invalid msg")
-			#self.recvLock.release()
+			if(received==False):
+				self.terminateComms()
+
 		if(not self.fdr.closed):
 			self.fdr.close()
+			
+	def interpret(self):
+		try:
+			while(self.recvQ.empty()==False):
+				msgString = self.recvQ.get()
+				if(not msgString):
+					self.terminateComms()
+				else:
+					msg = json.loads(msgString)
+					key = next(iter(msg.keys()))
+					if(key == 'updateUI'):
+						self.status = msg['updateUI']
+						#TODO parse status to UI
+					elif(key == 'cmd'):
+						self.commandsQ.put_nowait(msg['cmd'])
+					elif(key == 'msg'):
+						if(hasattr(self,'rig')):	 #If attribute rig has been added by activateUItoRig(), forward msg to rig
+							self.rig.pushTransMsg(msgString + '\n')
+							logging.info('Msg forwarded')
+					elif(key == 'promptReply'):
+						self.promptReplies.update({msg['promptReply']['id']:msg['promptReply']})
+					else:
+						#Log invalid key
+						logging.warning('invalid key: %s' %key)
+		except ValueError as e:
+			#Log invalid msg
+			logging.warning("Invalid msg")
 		
 	def getStatus(self):
 		return self.status
@@ -268,6 +273,14 @@ class UIComms(Comms):
 	def sendAppStatus(self,status):
 		obj = {}
 		obj['appStatus'] = status
+		io = StringIO()
+		json.dump(obj,io)
+		msg = str.encode(io.getvalue() + '\n')
+		self.pushTransMsg(msg)
+		
+	def sendRigUpdate(self,update):
+		obj = {}
+		obj['update'] = update
 		io = StringIO()
 		json.dump(obj,io)
 		msg = str.encode(io.getvalue() + '\n')
