@@ -67,12 +67,16 @@ class Control(object):
 		self.results = [] #list of dictionaries for test results
 		self.testCount = 0 #Counts the number of tests performed.
 		
+		#Priming
+		self.stopFill = False  #Flag indicating whether stopFill has been triggered.
+		
 		#Prompting
 		self.promptID = -1
 		
 	def changeState(self,newState):	
 		self.state = newState
 		self.subStateStep =1
+		self.preempt = False
 	
 	def abort(self):
 		logging.error('Abort')
@@ -103,6 +107,7 @@ class Control(object):
 			#Consider whether rig in the IDLE_PRES state. Issue a userWarning if not and IDLE, send primeCMD if it is.
 			'''
 			status = self.rigComms.getStatus()
+			self.stopFill = False
 			if(status['status']['state']=='IDLE_PRES'):
 				self.lastID = self.rigComms.sendCmd(Control.rigCommands['prime'])
 				self.subStateStep +=1
@@ -135,11 +140,9 @@ class Control(object):
 			'''
 			If in prime4 and stopFill instruction issured, goto IDLE. If in one of the IDLE state, go to IDLE
 			''' 
-			if(self.rigComms.getStatus()['status']['state']=='PRIME4'):	#TODO: add stopFill flag
-				self.subStateStep = 1
+			if(self.rigComms.getStatus()['status']['state']=='PRIME4' and self.preempt ==True):	#TODO: add stopFill flag
 				self.nextState()
 			elif(self.updateIDref < self.rigComms.getStatus()['id'] and (self.rigComms.getStatus()['status']['state']=='IDLE' or (self.rigComms.getStatus()['status']['state']=='IDLE_PRES'))):
-				self.subStateStep = 1
 				self.nextState()
 		
 		
@@ -151,7 +154,7 @@ class Control(object):
 		
 		stepsDict[self.subStateStep]()
 		
-	primeLoop.stopFill = False
+
 	
 	def errorLoop(self):
 		def step1():
@@ -278,7 +281,7 @@ class Control(object):
 			self.lastID = self.rigComms.sendCmd(Control.rigCommands['startPump'])
 			self.subStateStep +=1
 			self.timer1Passed = False
-			self.timer1 = threading.Timer(float(self.config['leakageTest'].get('pumpStartPeriod',10)),stopTimer1) #TODO: make settling time configurable
+			self.timer1 = threading.Timer(float(self.config['leakageTest'].get('pumpStartPeriod',10)),stopTimer1) 
 			self.timer1.start()
 			self.results = []
 			self.pressSeqCounter = 0
@@ -354,7 +357,7 @@ class Control(object):
 					self.subStateStep += 1
 					self.updateIDref = self.rigComms.getStatus()['id']
 					self.timer1Passed = False
-					self.timer1 = threading.Timer(float(self.config['leakageTest'].get('pressureSettlingPeriod',60)),stopTimer1) #TODO: make settling time configurable
+					self.timer1 = threading.Timer(float(self.config['leakageTest'].get('pressureSettlingPeriod',60)),stopTimer1) 
 					self.timer1.start()
 					logging.info('Continue to step 7')
 				else:
@@ -406,6 +409,10 @@ class Control(object):
 				self.subStateStep += 1
 				self.updateIDref = self.rigComms.getStatus()['id']
 				logging.info('Continue to step 10')
+			elif(self.preempt==True):
+				logging.info('User opted to pre-empt test during pressure step '+str(self.pressSeqCounter) + ' of ' + str(len(self.pressureSequence)))
+				logging.info('Skip to step 11')
+				self.subStateStep = 11
 				
 		def step10():	#TODO: Build in a pressure monitor for pressure changes.
 			'''Take the measurings from the rig at the right time.  If no flow, stop test. '''
@@ -417,6 +424,10 @@ class Control(object):
 				logging.info('Results taken')
 				
 				self.updateIDref = self.rigComms.getStatus()['id']
+				if(self.preempt == True):
+					logging.info('User opted to pre-empt test at pressure step '+str(self.pressSeqCounter) + ' of ' + str(len(self.pressureSequence)))
+					logging.info('Skip to step 11')
+					self.subStateStep +=1
 				if(self.pressSeqCounter<len(self.pressureSequence)):
 					self.subStateStep = 4 	#Jump back to set pressure step
 					logging.info ('Return to step4')
@@ -432,6 +443,11 @@ class Control(object):
 				self.updateIDref = self.rigComms.getStatus()['id']
 				self.subStateStep +=1
 				logging.info('Continue to step 11')
+			
+			elif(self.preempt == True):
+				logging.info('User opted to pre-empt test during pressure step '+str(self.pressSeqCounter) + ' of ' + str(len(self.pressureSequence)))
+				logging.info('Skip to step 11')
+				self.subStateStep +=1
 				
 		def step11():
 			'''Send final command for rig to IDLE'''
@@ -578,7 +594,6 @@ class Control(object):
 			return False
 		self.changeState('ISOLATION_TEST')
 		return True
-	def startDataUpload(self):
 		return False #not yet implemented
 	def startError(self):
 		self.changeState('ERROR')
