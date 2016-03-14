@@ -197,7 +197,7 @@ class Control(object):
 		def testFailed():
 			self.isolated = False
 			self.uiComms.sendWarning({'id':7,'msg': 'Isolation test failed.'})
-			self.changeState('IDLE') #TODO: This should actually be waitIsolate to allow for isolation to be checked again.  Note, rig must be put in IDLE state then.
+			self.subStateStep = 6 #TODO: This should actually be waitIsolate to allow for isolation to be checked again.  Note, rig must be put in IDLE state then.
 		
 		def startReleasePres():
 			''' Send forceFill command. Continue to next step'''
@@ -263,12 +263,32 @@ class Control(object):
 				self.isolated = True
 				self.nextState()
 				
+		def closeValve():
+			self.lastID = self.rigComms.sendCmd(Control.rigCommands['idle'])
+		
+		def confirmClosed():
+			reply = self.rigComms.getCmdReply(self.lastID)
+			if(reply[0]==True):
+				if(reply[1]['success'] == False):
+					self.uiComms.sendError({'id':2,'msg': 'JSON error'})
+					self.abort()
+				elif(reply[1]['code'] == 1):
+					if(self.isolated == True):
+						self.nextState()
+					else:
+						self.changeState('IDLE')
+				else:
+					self.uiComms.sendWarning({'id':3,'msg': 'Rig doenst return to idle'})
+					self.changeState('IDLE')
+				
 		stepsDict = {}
 		stepsDict[1] = startReleasePres
 		stepsDict[2] = confirmReleasePresStart
 		stepsDict[3] = considerPressureDrop
 		stepsDict[4] = confirmClearCounters
 		stepsDict[5] = checkVolume
+		stepsDict[6] = closeValve
+		stepsDict[7] = confirmClosed
 		
 		stepsDict[self.subStateStep]()
 
