@@ -47,6 +47,7 @@ class Control(object):
 		'''
 		self.config = _config
 		
+		self.terminate = False
 		self.state = 'IDLE'
 		self.mode = 'SINGLE_STATE'
 		self.rigComms = _rigComms
@@ -598,6 +599,11 @@ class Control(object):
 	def startError(self):
 		self.changeState('ERROR')
 		self.rigComms.sendCmd(Control.rigCommands['error'])
+	def terminateCmd(self):
+		self.terminate = True
+		self.rigComms.sendCmd(Control.rigCommands['error'])		#First send ERROR to ensure rig in safe state.
+		self.rigComms.sendCmd(Control.rigCommands['terminate'])
+		logging.info("Terminate initiated")
 	def continueCmd(self):
 		if(self.mode=='STEP_THROUGH'and self.toBeNextState):
 			self.changeState(self.toBeNextState)
@@ -622,7 +628,7 @@ class Control(object):
 		cmdDict = {"modeCMD":{"auto_continue":self.enable_auto_continue, "stepthrough":self.enable_stepthrough,"singlestate":self.enable_singlestate}\
 				,"stateCMD":{"prime":self.startPrime,"fill":self.startFill,"forceFill":self.startForceFill,"idle":self.startIdle,"pump":self.startPump,"setPressure":self.startSetPressure\
 							,"error":self.startError,"override":self.startOverrive,"leakageTest":self.startLeakageTest,"continue":self.continueCmd, "preempt":self.preemptCmd  \
-								,"clearError":self.clearError, "waitIsolate":self.startWaitIsolate,"isolationTest":self.startIsolationTest}
+								,"clearError":self.clearError, "waitIsolate":self.startWaitIsolate,"isolationTest":self.startIsolationTest,"terminate":self.terminateCmd}
 				}
 		reply = {}
 		
@@ -657,7 +663,7 @@ class Control(object):
 			self.sendUpdate()
 			self.lastSentUpdate = 0
 			
-			while(True):
+			while(self.terminate==False):
 				self.uiComms.interpret()
 				self.rigComms.interpret()
 				if(self.lastSentUpdate != self.rigComms.getStatus()['id']):
