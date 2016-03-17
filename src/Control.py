@@ -490,9 +490,14 @@ class Control(object):
 					with open('testResults'+str(self.testCount) +   '.txt','wt') as resultsFile:
 						self.testCount +=1
 						resultsFile.write('[')
+						first = True
 						for datapoint in self.results:
+							if(first==True):
+								first = False
+							else:
+								resultsFile.write(',')
 							json.dump(datapoint,resultsFile,indent=4)
-							resultsFile.write(',')
+							
 						resultsFile.write(']')
 					self.nextState()
 					self.subStateStep =1
