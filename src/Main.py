@@ -23,6 +23,9 @@ directory = "/home/jurie/python_projects/MainApplication/outputs/"+time.strftime
 
 if not os.path.exists(directory):
 	os.makedirs(directory)
+else:
+	print("Output directory already exists...")
+	exit()
 
 os.chdir(directory)
 	
