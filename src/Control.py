@@ -462,11 +462,18 @@ class Control(object):
 			elif(self.timer1Passed == True): #No flow
 				result =  {'position': self.pressSeqCounter-1,'setPressure':self.pressureSequence[self.pressSeqCounter-1],'avePressure':status['setData']['pressure'],'aveFlow': 0,'code':2}
 				self.results.append(result)
-				self.uiComms.sendWarning({'id':9,'msg':"No flow at this pressure.  Ending test prematurely."})
-				logging.warning("Test ended due to no-flow")
-				self.updateIDref = self.rigComms.getStatus()['id']
-				self.subStateStep +=1
-				logging.info('Continue to step 11')
+				self.uiComms.sendWarning({'id':9,'msg':"No flow at this pressure."})
+				
+				if(max(self.pressureSequence)>self.pressureSequence[self.pressSeqCounter-1] and self.pressureSequence[self.pressSeqCounter-1]!=-10 and self.pressSeqCounter<len(self.pressureSequence)):
+					#Current tested pressure is not the maximum pressure and not the last pressure step, therefore continue.
+					self.subStateStep = 4 	#Jump back to set pressure step
+					logging.info ('Return to step4')
+				else:
+					logging.warning("Test ended due to no-flow")
+					self.uiComms.sendWarning({'id':9,'msg':"Test stopped due to no-flow at max pressure step."})
+					self.subStateStep +=1
+					logging.info('Continue to step 11')
+
 			
 			elif(self.preempt == True):
 				logging.info('User opted to pre-empt test during pressure step '+str(self.pressSeqCounter) + ' of ' + str(len(self.pressureSequence)))
