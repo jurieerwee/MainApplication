@@ -306,7 +306,7 @@ class Control(object):
 			self.timer1.start()
 			self.results = []
 			self.pressSeqCounter = 0
-			logging.info('Step1 of leakageTest done')
+			logging.info('Continue to step 2')
 			
 		def step2():
 			''' Wait for reply on startPump command. Continue to next step'''
@@ -398,8 +398,11 @@ class Control(object):
 					self.timer1.start()
 					self.minMeasureTimePassed = False
 				else:
+					result = {'position': self.pressSeqCounter-1,'setPressure':self.pressureSequence[self.pressSeqCounter-1],'code':3}
+					self.results.append(result)
 					self.uiComms.sendWarning({'id':6,'msg':'Rig in wrong state after settling.'})
-					self.changeState('IDLE')
+					logging.warning('Rig in wrong state after settling')
+					self.subStateStep = 11
 					
 		def step8():
 			''' Wait for reply on resetCounters cmd. Continue to next step'''
@@ -440,7 +443,7 @@ class Control(object):
 			status = self.rigComms.getStatus()
 			if(status['setData']['flowCounter']>=3): #minimum of 3 pulses, ie, two delta
 				self.timer1.cancel() #Stop no-flow timeout
-				result = {'setPressure':self.pressureSequence[self.pressSeqCounter-1],'avePressure':status['setData']['pressure'],'aveFlow': status['setData']['flowRate']}
+				result = {'position': self.pressSeqCounter-1,'setPressure':self.pressureSequence[self.pressSeqCounter-1],'avePressure':status['setData']['pressure'],'aveFlow': status['setData']['flowRate'],'code':1}
 				self.results.append(result)
 				logging.info('Results taken')
 				
@@ -457,7 +460,7 @@ class Control(object):
 					logging.info('Continue to step 11')
 
 			elif(self.timer1Passed == True): #No flow
-				result =  {'setPressure':self.pressureSequence[self.pressSeqCounter-1],'avePressure':status['setData']['pressure'],'aveFlow': 0}
+				result =  {'position': self.pressSeqCounter-1,'setPressure':self.pressureSequence[self.pressSeqCounter-1],'avePressure':status['setData']['pressure'],'aveFlow': 0,'code':2}
 				self.results.append(result)
 				self.uiComms.sendWarning({'id':9,'msg':"No flow at this pressure.  Ending test prematurely."})
 				logging.warning("Test ended due to no-flow")
@@ -479,28 +482,32 @@ class Control(object):
 			
 			
 		def step12():
+			'''Save results independant on IDLE status'''
+			with open('testResults'+str(self.testCount) +   '.txt','wt') as resultsFile:
+				self.testCount +=1
+				resultsFile.write('[')
+				first = True
+				for datapoint in self.results:
+					if(first==True):
+						first = False
+					else:
+						resultsFile.write(',')
+					json.dump(datapoint,resultsFile,indent=4)
+					
+			resultsFile.write(']')
+			
+			logging.info('Results saved')
+			logging.info('Continue to step 13')
+			self.subStateStep += 1
+					
+		def step13():
 			reply = self.rigComms.getCmdReply(self.lastID)
 			if(reply[0]==True):
 				if(reply[1]['success'] == False):
 					self.uiComms.sendError({'id':6,'msg': 'JSON error'})
 					self.abort()
 				elif(reply[1]['code'] == 1):
-					self.updateIDref = self.rigComms.getStatus()['id']
-					
-					with open('testResults'+str(self.testCount) +   '.txt','wt') as resultsFile:
-						self.testCount +=1
-						resultsFile.write('[')
-						first = True
-						for datapoint in self.results:
-							if(first==True):
-								first = False
-							else:
-								resultsFile.write(',')
-							json.dump(datapoint,resultsFile,indent=4)
-							
-						resultsFile.write(']')
 					self.nextState()
-					self.subStateStep =1
 				else:
 					self.uiComms.sendWarning({'id':8,'msg': 'Final idle command unsuccessful. Returning to IDLE'})
 					self.changeState('IDLE')
@@ -518,6 +525,7 @@ class Control(object):
 		stepsDict[10] = step10
 		stepsDict[11] = step11
 		stepsDict[12] = step12
+		stepsDict[13] = step13
 		
 		stepsDict[self.subStateStep]()
 
