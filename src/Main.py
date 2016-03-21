@@ -3,6 +3,7 @@ Created on 20 Nov 2015
 
 @author: Jurie
 '''
+from time import strftime
 
 if __name__ == '__main__':
     pass
@@ -15,8 +16,15 @@ import time
 import sys
 import logging
 import configparser
+import os
 
 
+directory = "/home/jurie/python_projects/MainApplication/outputs/"+time.strftime("%Y%m%d_%H%M",time.gmtime())+"/"
+
+if not os.path.exists(directory):
+	os.makedirs(directory)
+
+os.chdir(directory)
 	
 def initLogging():
 	logging.basicConfig(filename='mainAppLog.log',filemode = 'w',level=logging.INFO, format='[%(asctime)s] %(levelname)s: %(message)s')
