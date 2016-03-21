@@ -9,7 +9,8 @@ import threading
 import logging
 import json
 from Comms import UIComms
-from time import gmtime, strftime
+from datetime import datetime
+import paho.mqtt.publish as publish
 
 class Control(object):
 	'''
@@ -41,11 +42,12 @@ class Control(object):
 	rigCommands['closeReleaseVavle'] = {'type':'manual','instr':'closeReleaseVavle'}
 	rigCommands['error'] = {'type':'stateCMD','instr':'error'}
 
-	def __init__(self, _rigComms, _uiComms, _config):
+	def __init__(self, _rigComms, _uiComms, _config, _sessionDate):
 		'''
 		Constructor
 		'''
 		self.config = _config
+		self.sessionDate = _sessionDate
 		
 		self.terminate = False
 		self.state = 'IDLE'
@@ -490,19 +492,15 @@ class Control(object):
 			
 		def step12():
 			'''Save results independant on IDLE status'''
-			with open('testResults'+str(self.testCount) +   '.txt','wt') as resultsFile:
-				self.testCount +=1
-				resultsFile.write('[')
-				first = True
-				for datapoint in self.results:
-					if(first==True):
-						first = False
-					else:
-						resultsFile.write(',')
-					json.dump(datapoint,resultsFile,indent=4)
-					
-			resultsFile.write(']')
+			resultDict = {'sessionDate':self.sessionDate.isoformat(),'number':self.testCount,'code':1,'time':datetime.now().isoformat(),'dataPoints':self.results}
 			
+			repl = publish.single('leakage/rig1/leakageTest',json.dumps(resultDict),hostname=self.config['mqttServer']['ip'])
+			if(repl[0]==publish.MQTT_ERR_NO_CONN):
+				self.uiComms.sendWarning({'id':20,'msg':"Tests results could not be loaded to server."})
+			with open('testResults'+str(self.testCount) +   '.txt','wt') as resultsFile:
+				json.dump(resultDict, resultsFile)
+				
+			self.testCount +=1
 			logging.info('Results saved')
 			logging.info('Continue to step 13')
 			self.subStateStep += 1

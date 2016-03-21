@@ -12,14 +12,16 @@ from Comms import *
 import Control
 import threading
 import socket
-import time
+from datetime import datetime
 import sys
+import time
 import logging
 import configparser
 import os
 
 
-directory = "/home/jurie/python_projects/MainApplication/outputs/"+time.strftime("%Y%m%d_%H%M",time.gmtime())+"/"
+sessionDate= datetime.now()
+directory = "/home/jurie/python_projects/MainApplication/outputs/"+sessionDate.strftime("%Y%m%d_%H%M")+"/"
 
 if not os.path.exists(directory):
 	os.makedirs(directory)
@@ -85,7 +87,7 @@ time.sleep(2)
 
 
 
-ctrl = Control.Control(rigComms,uiComms,config)
+ctrl = Control.Control(rigComms,uiComms,config,sessionDate)
 
 try:
 	ctrl.controlLoop()
