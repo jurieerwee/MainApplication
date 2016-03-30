@@ -18,6 +18,7 @@ import time
 import logging
 import configparser
 import os
+from Results import Results
 
 
 sessionDate= datetime.now()
@@ -36,11 +37,18 @@ def initLogging():
 
 def initConfig():
 	config = configparser.ConfigParser()
-	config.read(['ipSettings.conf','stateSettings.conf'])
+	config.read(['ipSettings.conf','stateSettings.conf','rigID.conf'])
 	return config
+
+def initResults(config, sessionDate,coordinates):
+	mqttParams = {'qos':2,'hostname':config['mqttServer'].get('ip'),'auth':{'username':config['mqttServer'].get('username',None),'password':config['mqttServer'].get('password',None)},'port':int(config['mqttServer'].get('port',1883)) }
+	resultsComm = Results(mqttParams,config['mqttServer'].get('topicPrefix','waterleakage'), config.get('rigID'),sessionDate,config['mqttServer'].get('backupDir','/user/jurie/home/mqttUnsent'))
+		
+	return resultsComm
 
 initLogging()
 config = initConfig()
+resultsComm = initResults(config, sessionDate)
 
 '''Determine ip addresses and ports'''
 if(len(sys.argv)>1):
@@ -85,9 +93,11 @@ t_trans.start()
 rigComms.sendCmd({'type':'setCMD','instr':'activateUpdate'})
 time.sleep(2)
 
+coordinates = None
+resultsComm.publishSession(coordinates,config['metadata'].get('softwareV','Undefined'),config.get('confV','Undefined'),config['metadata'].get('operator','Undefined'),float(config['metadata'].get('heightComp',0)))		
 
 
-ctrl = Control.Control(rigComms,uiComms,config,sessionDate)
+ctrl = Control.Control(rigComms,uiComms,resultsComm,config,sessionDate)
 
 try:
 	ctrl.controlLoop()

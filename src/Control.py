@@ -10,7 +10,7 @@ import logging
 import json
 from Comms import UIComms
 from datetime import datetime
-import paho.mqtt.publish as publish
+from Results import Results
 
 class Control(object):
 	'''
@@ -42,12 +42,13 @@ class Control(object):
 	rigCommands['closeReleaseVavle'] = {'type':'manual','instr':'closeReleaseVavle'}
 	rigCommands['error'] = {'type':'stateCMD','instr':'error'}
 
-	def __init__(self, _rigComms, _uiComms, _config, _sessionDate):
+	def __init__(self, _rigComms, _uiComms, _resultsComm, _config, _sessionDate):
 		'''
 		Constructor
 		'''
 		self.config = _config
 		self.sessionDate = _sessionDate
+		self.resultsComm = _resultsComm
 		
 		self.terminate = False
 		self.state = 'IDLE'
@@ -60,7 +61,10 @@ class Control(object):
 		self.lastID = 0
 		self.resetErrorID = -1 #For the reset of an error
 		self.toBeNextState = None
-		self.isolated = False #Flag indicating whether isolation test has been passed.
+		
+		#IsolationTest
+		self.isolated = 0 #Flag indicating whether isolation test has been passed. 0=untested, 1=isolated, 2=failed-nopressuredrop, 3=failed-flow
+		self.isolationTestCount = 0
 		
 		#leakageTest
 		#self.pressureSequence = [4,3.5,3,2.5,2]
@@ -197,7 +201,7 @@ class Control(object):
 			self.timer1Passed = True
 		
 		def testFailed():
-			self.isolated = False
+			#self.isolated = False
 			self.uiComms.sendWarning({'id':7,'msg': 'Isolation test failed.'})
 			self.subStateStep = 6 #TODO: This should actually be waitIsolate to allow for isolation to be checked again.  Note, rig must be put in IDLE state then.
 		
@@ -234,6 +238,7 @@ class Control(object):
 				self.subStateStep +=1
 			elif(self.timer1Passed and self.rigComms.getStatus()['id']>self.updateIDref):
 				logging.info('Pressure dropped insufficiently. Stop test')
+				self.isolated = 2
 				testFailed()
 				
 		
@@ -259,14 +264,26 @@ class Control(object):
 			if(self.rigComms.getStatus()['setData']['flowCounter'] > int((self.config['isolationTest'].get('maxVolume',2)))):
 				logging.info('Volume threshold exceeded.  Isolation test failed')
 				self.timer1.cancel()
+				self.isolated = 3
 				testFailed()
 			elif (self.timer1Passed==True):
 				logging.info('Volume threhold not exceeded in noFlowPeroid. Isolation test passed')
-				self.isolated = True
-				self.nextState()
+				self.isolated = 1
+				self.subStateStep += 1
 				
 		def closeValve():
 			self.lastID = self.rigComms.sendCmd(Control.rigCommands['idle'])
+			self.subStateStep += 1
+		
+		def publishResults():
+			repl = self.resultsComm.publishIsolationTest(number=self.isolationTestCount,code=self.isolated,time=datetime.now())
+			if(repl==self.resultsComm.BACKEDUP):
+				self.uiComms.sendWarning({'id':22,'msg':"Isolation test result could not be published to server. Results are backed-up."})
+			elif(repl==self.resultsComm.FAILED):
+				self.uiComms.sendWarning({'id':23,'msg':"Isolation test result could not be published to server or backed-up."})
+			
+			self.isolationTestCount +=1
+			self.subStateStep += 1
 		
 		def confirmClosed():
 			reply = self.rigComms.getCmdReply(self.lastID)
@@ -275,7 +292,7 @@ class Control(object):
 					self.uiComms.sendError({'id':2,'msg': 'JSON error'})
 					self.abort()
 				elif(reply[1]['code'] == 1):
-					if(self.isolated == True):
+					if(self.isolated == 1):
 						self.nextState()
 					else:
 						self.changeState('IDLE')
@@ -290,7 +307,8 @@ class Control(object):
 		stepsDict[4] = confirmClearCounters
 		stepsDict[5] = checkVolume
 		stepsDict[6] = closeValve
-		stepsDict[7] = confirmClosed
+		stepsDict[7] = publishResults
+		stepsDict[8] = confirmClosed
 		
 		stepsDict[self.subStateStep]()
 
@@ -445,6 +463,7 @@ class Control(object):
 			status = self.rigComms.getStatus()
 			if(status['setData']['flowCounter']>=3): #minimum of 3 pulses, ie, two delta
 				self.timer1.cancel() #Stop no-flow timeout
+				#TODO: Add volume
 				result = {'position': self.pressSeqCounter-1,'setPressure':self.pressureSequence[self.pressSeqCounter-1],'avePressure':status['setData']['pressure'],'aveFlow': status['setData']['flowRate'],'code':1}
 				self.results.append(result)
 				logging.info('Results taken')
@@ -493,12 +512,13 @@ class Control(object):
 		def step12():
 			'''Save results independant on IDLE status'''
 			resultDict = {'sessionDate':self.sessionDate.isoformat(),'number':self.testCount,'code':1,'time':datetime.now().isoformat(),'dataPoints':self.results}
+			repl = self.resultsComm.publishLeakTest(number=self.testCount,code=1,time=datetime.now(),dataPoints=self.results)
 			
-			repl = publish.single('leakage/rig1/leakageTest',json.dumps(resultDict),hostname=self.config['mqttServer']['ip'])
-			if(repl[0]==publish.MQTT_ERR_NO_CONN):
+			if(repl== self.resultsComm.BACKEDUP):
 				self.uiComms.sendWarning({'id':20,'msg':"Tests results could not be loaded to server."})
-			with open('testResults'+str(self.testCount) +   '.txt','wt') as resultsFile:
-				json.dump(resultDict, resultsFile)
+			elif(repl== self.resultsComm.FAILED):
+				self.uiComms.sendWarning({'id':21,'msg':"Tests results could not be loaded to server or backed up."})
+			
 				
 			self.testCount +=1
 			logging.info('Results saved')
@@ -697,9 +717,12 @@ class Control(object):
 		self.stateFunctions = {'PRIME':self.primeLoop, 'IDLE':self.idleLoop, 'LEAKAGE_TEST':self.leakTestLoop,'ISOLATION_TEST':self.isolationTestLoop, 'ERROR':self.errorLoop, 'WAIT_ISOLATE':self.waitIsolateLoop, 'PUMP':self.pumpLoop,'OVERRIDE':self.overrideLoop}
 		logging.info('Started controlLoop')
 		
+		
+		
 		try:
 			self.sendUpdate()
 			self.lastSentUpdate = 0
+			
 			
 			while(self.terminate==False):
 				self.uiComms.interpret()
