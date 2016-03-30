@@ -4,6 +4,7 @@ Created on 29 Mar 2016
 @author: Jurie
 '''
 import paho.mqtt.publish as publish
+import paho.mqtt.client as paho
 import logging
 import json
 import datetime
@@ -12,12 +13,12 @@ class Results(object):
 	'''
 	classdocs sucessful 
 	'''
-	Results.SUCCESSFUL = 1
-	Results.BACKEDUP = 2
-	Results.FAILED = 0
+	SUCCESSFUL = 1
+	BACKEDUP = 2
+	FAILED = 0
 	
 
-	def __init__(self, _mqttPublishParams,_topicPrefix,_rigID,_sessionDate, _backupdir):
+	def __init__(self, _mqttPublishParams,_auth,_topicPrefix,_rigID,_sessionDate, _backupdir):
 		'''
 		Constructor
 		'''
@@ -28,10 +29,16 @@ class Results(object):
 		self.backupdir = _backupdir
 		
 		self.sessionStarted = False
+		
+		self.client = paho.Client()
+		if(_auth):
+			self.client.username_pw_set(**_auth)
+		self.client.connect(**_mqttPublishParams)
+		self.client.loop_start()
 		''' Session must be successfully published for other publishes to send'''
 		
-	def publishSession(self, coordinates=None,softwareV,confV,operator,heightComp):
-		resultdict = {'date':self.sessionDate, 'coordinates':coordinates,'rigID':self.rigID, 'softwareV':softwareV, 'confV':confV, 'operator':operator, 'heigthCompensation':heightComp}
+	def publishSession(self, coordinates,softwareV,confV,operator,heightComp):
+		resultdict = {'date':self.sessionDate, 'coordinates':coordinates,'rigID':self.rigID, 'softwareV':softwareV, 'confV':confV, 'operator':operator, 'heightCompensation':heightComp}
 		
 		with open('session.txt','wt') as resultsFile:
 			json.dump(resultdict, resultsFile)
@@ -43,8 +50,8 @@ class Results(object):
 		return repl
 		
 	def publishLeakTest(self,number,code,time,dataPoints):
-		resultDict = {'sessionDate':self.sessionDate,'number':number,'code':code,'time':time.isoformat()[:-7],'dataPoints':dataPoints}
-		
+		resultDict = {'sessionDate':self.sessionDate,'number':number,'code':code,'time':time.isoformat()[:-7],'data':dataPoints}
+
 		with open('testResults'+str(number) +   '.txt','wt') as resultsFile:
 				json.dump(resultDict, resultsFile)
 		
@@ -72,11 +79,12 @@ class Results(object):
 		'''Transmission is only allowed if session type msg or session started activated. '''
 		transmit = (self.sessionStarted == True or msgType=='session')
 		if(transmit):
-			repl = publish.single(topic,json.dump(payload),**self.mqttPublishParams)
+			repl = self.client.publish(topic,json.dumps(payload),qos=2)
 		else:
-			repl = [None,]
+			repl = [paho.MQTT_ERR_NO_CONN]
+		print(repl)
 		
-		if(transmit==False or repl[0]==publish.MQTT_ERR_NO_CONN):
+		if(transmit==False or repl[0]==paho.MQTT_ERR_NO_CONN):
 			try:
 				with open(self.backupdir+'/'+self.sessionDate+'_'+msgType+'.json','wt') as resultsFile:
 					temp = {'topic':topic,'payload':payload}
@@ -90,4 +98,6 @@ class Results(object):
 			logging.info('MQTT publish successful: '+ topic)
 			return Results.SUCCESSFUL
 			
+	def __del__(self):
+		self.client.loop_stop()
 		

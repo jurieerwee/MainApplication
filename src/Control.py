@@ -511,7 +511,7 @@ class Control(object):
 			
 		def step12():
 			'''Save results independant on IDLE status'''
-			resultDict = {'sessionDate':self.sessionDate.isoformat(),'number':self.testCount,'code':1,'time':datetime.now().isoformat(),'dataPoints':self.results}
+			#resultDict = {'sessionDate':self.sessionDate.isoformat(),'number':self.testCount,'code':1,'time':datetime.now().isoformat(),'data':self.results}
 			repl = self.resultsComm.publishLeakTest(number=self.testCount,code=1,time=datetime.now(),dataPoints=self.results)
 			
 			if(repl== self.resultsComm.BACKEDUP):

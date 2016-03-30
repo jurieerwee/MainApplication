@@ -24,13 +24,7 @@ from Results import Results
 sessionDate= datetime.now()
 directory = "/home/jurie/python_projects/MainApplication/outputs/"+sessionDate.strftime("%Y%m%d_%H%M")+"/"
 
-if not os.path.exists(directory):
-	os.makedirs(directory)
-else:
-	print("Output directory already exists...")
-	exit()
 
-os.chdir(directory)
 	
 def initLogging():
 	logging.basicConfig(filename='mainAppLog.log',filemode = 'w',level=logging.INFO, format='[%(asctime)s] %(levelname)s: %(message)s')
@@ -41,14 +35,38 @@ def initConfig():
 	return config
 
 def initResults(config, sessionDate,coordinates):
-	mqttParams = {'qos':2,'hostname':config['mqttServer'].get('ip'),'auth':{'username':config['mqttServer'].get('username',None),'password':config['mqttServer'].get('password',None)},'port':int(config['mqttServer'].get('port',1883)) }
-	resultsComm = Results(mqttParams,config['mqttServer'].get('topicPrefix','waterleakage'), config.get('rigID'),sessionDate,config['mqttServer'].get('backupDir','/user/jurie/home/mqttUnsent'))
+	username 	= config['mqttServer'].get('username',None)
+	password 	= config['mqttServer'].get('password',None)
+	mqttParams 	= {'host':config['mqttServer']['ip'],'port':int(config['mqttServer'].get('port',1883)) }
+	if(username and password):
+		auth = {'username':username,'password':password}
+	elif(username):
+		auth = {'username':username}
+	else:
+		auth = None
+	
+	resultsComm = Results(mqttParams,auth,config['mqttServer'].get('topicPrefix','waterleakage'), config['DEFAULT']['rigID'],sessionDate,config['mqttServer'].get('backupDir','/user/jurie/home/mqttUnsent'))
 		
 	return resultsComm
 
-initLogging()
+
 config = initConfig()
-resultsComm = initResults(config, sessionDate)
+
+if not os.path.exists(directory):
+	os.makedirs(directory)
+else:
+	print("Output directory already exists...")
+	exit()
+
+os.chdir(directory)
+#try:
+initLogging()
+resultsComm = initResults(config, sessionDate, None)
+#except KeyError as e:
+#	print(e)
+#	exit()
+
+print('Init done')
 
 '''Determine ip addresses and ports'''
 if(len(sys.argv)>1):
@@ -94,7 +112,7 @@ rigComms.sendCmd({'type':'setCMD','instr':'activateUpdate'})
 time.sleep(2)
 
 coordinates = None
-resultsComm.publishSession(coordinates,config['metadata'].get('softwareV','Undefined'),config.get('confV','Undefined'),config['metadata'].get('operator','Undefined'),float(config['metadata'].get('heightComp',0)))		
+resultsComm.publishSession(coordinates,config['metadata'].get('softwareV','Undefined'),config['DEFAULT'].get('confV','Undefined'),config['metadata'].get('operator','Undefined'),float(config['metadata'].get('heightComp',0)))		
 
 
 ctrl = Control.Control(rigComms,uiComms,resultsComm,config,sessionDate)
